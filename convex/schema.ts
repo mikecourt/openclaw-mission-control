@@ -28,7 +28,8 @@ export default defineSchema({
 		orgId: v.optional(v.string()),
 		workspaceId: v.optional(v.string()),
 		tenantId: v.optional(v.string()),
-	}).index("by_tenant", ["tenantId"]),
+	}).index("by_tenant", ["tenantId"])
+		.index("by_tenant_name", ["tenantId", "name"]),
 
 	projects: defineTable({
 		name: v.string(),

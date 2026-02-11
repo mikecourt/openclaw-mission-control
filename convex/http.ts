@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { auth } from "./auth";
 
+
 const http = httpRouter();
 
 auth.addHttpRoutes(http);
@@ -218,6 +219,103 @@ http.route({
 			return ok({ ok: true });
 		} catch (e: any) {
 			return badRequest(e.message || "Failed to update agent status");
+		}
+	}),
+});
+
+// POST /api/agents/sync — bulk sync agent metadata from openclaw.json
+http.route({
+	path: "/api/agents/sync",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			const agents: Array<{
+				name: string;
+				role: string;
+				avatar: string;
+				orgId?: string;
+				workspaceId?: string;
+				kind?: string;
+				reportsTo?: string;
+			}> = body.agents || [];
+
+			if (!agents.length) return badRequest("No agents provided");
+
+			// Pass 1: Upsert all agents
+			let created = 0;
+			let updated = 0;
+			for (const agent of agents) {
+				const result = await ctx.runMutation(api.agentSync.upsertAgent, {
+					tenantId,
+					name: agent.name,
+					role: agent.role,
+					avatar: agent.avatar,
+					orgId: agent.orgId,
+					workspaceId: agent.workspaceId,
+					kind: agent.kind,
+				});
+				if (result.action === "created") created++;
+				else updated++;
+			}
+
+			// Pass 2: Resolve reportsTo references
+			const mappings = agents
+				.filter((a) => a.reportsTo)
+				.map((a) => ({
+					agentName: a.orgId || a.name,
+					reportsToName: a.reportsTo!,
+				}));
+
+			let resolved = 0;
+			if (mappings.length > 0) {
+				const result = await ctx.runMutation(api.agentSync.resolveReportsTo, {
+					tenantId,
+					mappings,
+				});
+				resolved = result.resolved;
+			}
+
+			return ok({ ok: true, total: agents.length, created, updated, resolved });
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to sync agents");
+		}
+	}),
+});
+
+// GET /api/agents/active — list agents with status="active" and their task info
+http.route({
+	path: "/api/agents/active",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const url = new URL(request.url);
+		const tenantId = url.searchParams.get("tenantId") || "default";
+		const active = await ctx.runQuery(api.agentSync.getActiveAgents, { tenantId });
+		return ok(active);
+	}),
+});
+
+// POST /api/agents/reconcile — mark stale agents as idle
+http.route({
+	path: "/api/agents/reconcile",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			const agentNames: string[] = body.agentNames || [];
+			if (!agentNames.length) return badRequest("No agent names provided");
+
+			const result = await ctx.runMutation(api.agentSync.reconcileStale, {
+				tenantId,
+				agentNames,
+			});
+			return ok({ ok: true, ...result });
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to reconcile agents");
 		}
 	}),
 });

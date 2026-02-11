@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as agentSync from "../agentSync.js";
 import type * as agents from "../agents.js";
 import type * as auth from "../auth.js";
 import type * as documents from "../documents.js";
@@ -28,6 +29,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  agentSync: typeof agentSync;
   agents: typeof agents;
   auth: typeof auth;
   documents: typeof documents;
