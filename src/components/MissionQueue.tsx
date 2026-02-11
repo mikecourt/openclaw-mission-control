@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { IconArchive, IconArrowLeft, IconPlus } from "@tabler/icons-react";
+import { IconArrowLeft, IconPlus } from "@tabler/icons-react";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import {
 	DndContext,
@@ -14,14 +14,17 @@ import {
 	DragEndEvent,
 } from "@dnd-kit/core";
 import ProjectCard from "./ProjectCard";
-import TaskCard from "./TaskCard";
 import KanbanColumn from "./KanbanColumn";
+import TaskRowList from "./TaskRowList";
+import IdeasView from "./IdeasView";
+import ArchivedView from "./ArchivedView";
+import AddIdeaModal from "./AddIdeaModal";
 
-type TaskStatus = "inbox" | "assigned" | "in_progress" | "review" | "done" | "archived";
-type ProjectStatus = "planning" | "active" | "paused" | "review" | "complete" | "archived";
+type ProjectStatus = "idea" | "planning" | "active" | "paused" | "review" | "complete" | "archived";
 
 interface Task {
 	_id: Id<"tasks">;
+	_creationTime: number;
 	title: string;
 	description: string;
 	status: string;
@@ -37,6 +40,7 @@ interface Task {
 
 interface ProjectData {
 	_id: Id<"projects">;
+	_creationTime: number;
 	name: string;
 	description: string;
 	status: string;
@@ -56,25 +60,6 @@ interface ProjectData {
 	needsInputCount: number;
 }
 
-function formatRelativeTime(timestamp: number | null): string {
-	if (!timestamp) return "";
-
-	const now = Date.now();
-	const diff = now - timestamp;
-
-	const seconds = Math.floor(diff / 1000);
-	const minutes = Math.floor(seconds / 60);
-	const hours = Math.floor(minutes / 60);
-	const days = Math.floor(hours / 24);
-
-	if (seconds < 60) return "just now";
-	if (minutes < 60) return `${minutes}m ago`;
-	if (hours < 24) return `${hours}h ago`;
-	if (days < 7) return `${days}d ago`;
-
-	return new Date(timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-}
-
 const projectColumns = [
 	{ id: "planning", label: "PLANNING", color: "var(--text-subtle)" },
 	{ id: "active", label: "ACTIVE", color: "var(--accent-blue)" },
@@ -82,14 +67,7 @@ const projectColumns = [
 	{ id: "complete", label: "COMPLETE", color: "var(--accent-green)" },
 ];
 
-const taskColumns = [
-	{ id: "inbox", label: "INBOX", color: "var(--text-subtle)" },
-	{ id: "assigned", label: "ASSIGNED", color: "var(--accent-orange)" },
-	{ id: "in_progress", label: "IN PROGRESS", color: "var(--accent-blue)" },
-	{ id: "done", label: "DONE", color: "var(--accent-green)" },
-];
-
-const archivedColumn = { id: "archived", label: "ARCHIVED", color: "var(--text-subtle)" };
+type ActiveTab = "board" | "ideas" | "archived";
 
 interface MissionQueueProps {
 	selectedTaskId: Id<"tasks"> | null;
@@ -125,9 +103,10 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 	const updateTaskStatus = useMutation(api.tasks.updateStatus);
 	const updateProject = useMutation(api.projects.update);
 	const linkRun = useMutation(api.tasks.linkRun);
-	const [showArchived, setShowArchived] = useState(false);
+	const [activeTab, setActiveTab] = useState<ActiveTab>("board");
+	const [showAddIdeaModal, setShowAddIdeaModal] = useState(false);
 	const convex = useConvex();
-	const [activeItem, setActiveItem] = useState<Task | ProjectData | null>(null);
+	const [activeItem, setActiveItem] = useState<ProjectData | null>(null);
 
 	const currentUserAgent = agents?.find(a => a.name === "Mike");
 
@@ -163,13 +142,8 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 	// --- Project view handlers ---
 
 	const handleDragStartProject = (event: DragStartEvent) => {
-		if (selectedProjectId) {
-			const task = tasks?.find((t) => t._id === event.active.id);
-			if (task) setActiveItem(task as Task);
-		} else {
-			const project = projects?.find((p) => p._id === event.active.id);
-			if (project) setActiveItem(project as unknown as ProjectData);
-		}
+		const project = projects?.find((p) => p._id === event.active.id);
+		if (project) setActiveItem(project as unknown as ProjectData);
 	};
 
 	const handleDragEndProject = async (event: DragEndEvent) => {
@@ -178,33 +152,17 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 
 		if (!over || !currentUserAgent) return;
 
-		if (selectedProjectId) {
-			// Task drag within project
-			const taskId = active.id as Id<"tasks">;
-			const newStatus = over.id as TaskStatus;
-			const task = tasks?.find((t) => t._id === taskId);
+		// Project drag
+		const projectId = active.id as Id<"projects">;
+		const newStatus = over.id as ProjectStatus;
+		const project = projects?.find((p) => p._id === projectId);
 
-			if (task && task.status !== newStatus) {
-				await updateTaskStatus({
-					taskId,
-					status: newStatus,
-					agentId: currentUserAgent._id,
-					tenantId: DEFAULT_TENANT_ID,
-				});
-			}
-		} else {
-			// Project drag
-			const projectId = active.id as Id<"projects">;
-			const newStatus = over.id as ProjectStatus;
-			const project = projects?.find((p) => p._id === projectId);
-
-			if (project && project.status !== newStatus) {
-				await updateProject({
-					projectId,
-					status: newStatus,
-					tenantId: DEFAULT_TENANT_ID,
-				});
-			}
+		if (project && project.status !== newStatus) {
+			await updateProject({
+				projectId,
+				status: newStatus,
+				tenantId: DEFAULT_TENANT_ID,
+			});
 		}
 	};
 
@@ -300,14 +258,41 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 		await triggerAgent(taskId, message);
 	};
 
+	// --- Filtered project lists ---
+	const ideaProjects = projects?.filter((p) => p.status === "idea") ?? [];
+	const archivedProjects = projects?.filter((p) => p.status === "archived") ?? [];
+
 	// --- Render ---
 
+	// Tab bar (shown when no project is selected)
+	const renderTabBar = () => (
+		<div className="flex gap-1 px-6 py-2 bg-card border-b border-border">
+			{(["board", "ideas", "archived"] as ActiveTab[]).map((tab) => (
+				<button
+					key={tab}
+					onClick={() => setActiveTab(tab)}
+					className={`px-3 py-1 text-[11px] font-bold tracking-widest rounded transition-colors ${
+						activeTab === tab
+							? "bg-foreground text-background"
+							: "text-muted-foreground hover:bg-muted"
+					}`}
+				>
+					{tab.toUpperCase()}
+					{tab === "ideas" && ideaProjects.length > 0 && (
+						<span className="ml-1.5 text-[9px] opacity-70">{ideaProjects.length}</span>
+					)}
+					{tab === "archived" && archivedProjects.length > 0 && (
+						<span className="ml-1.5 text-[9px] opacity-70">{archivedProjects.length}</span>
+					)}
+				</button>
+			))}
+		</div>
+	);
+
+	// Task Row List view (drill-down into a project)
 	if (selectedProjectId) {
-		// TASK VIEW (drill-down into a project or unassigned tasks)
 		const project = isBacklogView ? null : projects?.find((p) => p._id === selectedProjectId);
 		const viewTitle = isBacklogView ? "BACKLOG" : (project?.name?.toUpperCase() || "PROJECT");
-		const displayColumns = showArchived ? [...taskColumns, archivedColumn] : taskColumns;
-		const archivedCount = tasks?.filter((t) => t.status === "archived").length || 0;
 
 		return (
 			<main className="[grid-area:main] bg-secondary flex min-h-0 flex-col overflow-hidden">
@@ -327,7 +312,7 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 							</div>
 							{project && (
 								<div className="text-[10px] text-muted-foreground mt-0.5">
-									{project.progress}% complete
+									{(project as unknown as ProjectData).progress}% complete
 								</div>
 							)}
 						</div>
@@ -342,81 +327,53 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 						<div className="text-[11px] font-semibold px-3 py-1 rounded bg-muted text-muted-foreground">
 							{tasks?.filter((t) => t.status !== "done" && t.status !== "archived").length || 0} active
 						</div>
-						<button
-							onClick={() => setShowArchived(!showArchived)}
-							className={`text-[11px] font-semibold px-3 py-1 rounded flex items-center gap-1.5 transition-colors ${
-								showArchived
-									? "bg-[var(--accent-blue)] text-white"
-									: "bg-muted text-muted-foreground hover:bg-muted"
-							}`}
-						>
-							<IconArchive size={14} />
-							{showArchived ? "Hide Archived" : "Archived"}
-							{archivedCount > 0 && (
-								<span className={`px-1.5 rounded-full text-[10px] ${showArchived ? "bg-card/20" : "bg-accent"}`}>
-									{archivedCount}
-								</span>
-							)}
-						</button>
 					</div>
 				</div>
 
-				<DndContext
-					sensors={sensors}
-					onDragStart={handleDragStartProject}
-					onDragEnd={handleDragEndProject}
-				>
-					<div className={`flex-1 min-h-0 grid gap-px bg-border overflow-x-auto overflow-y-hidden ${showArchived ? "grid-cols-5" : "grid-cols-4"}`}>
-						{displayColumns.map((col) => (
-							<KanbanColumn
-								key={col.id}
-								column={col}
-								taskCount={tasks?.filter((t) => t.status === col.id).length || 0}
-							>
-								{tasks
-									?.filter((t) => t.status === col.id)
-									.map((task) => (
-										<TaskCard
-											key={task._id}
-											task={task as Task}
-											isSelected={selectedTaskId === task._id}
-											onClick={() => onSelectTask(task._id)}
-											getAgentName={getAgentName}
-											formatRelativeTime={formatRelativeTime}
-											columnId={col.id}
-											currentUserAgentId={currentUserAgent?._id}
-											onArchive={handleArchive}
-											onPlay={handlePlay}
-										/>
-									))}
-							</KanbanColumn>
-						))}
-					</div>
-
-					<DragOverlay>
-						{activeItem && "_id" in activeItem && "assigneeIds" in activeItem ? (
-							<TaskCard
-								task={activeItem as Task}
-								isSelected={false}
-								onClick={() => {}}
-								getAgentName={getAgentName}
-								formatRelativeTime={formatRelativeTime}
-								columnId={(activeItem as Task).status}
-								isOverlay={true}
-							/>
-						) : null}
-					</DragOverlay>
-				</DndContext>
+				<TaskRowList
+					tasks={(tasks ?? []) as Task[]}
+					selectedTaskId={selectedTaskId}
+					onSelectTask={onSelectTask}
+					onArchive={handleArchive}
+					onPlay={handlePlay}
+					getAgentName={getAgentName}
+					currentUserAgentId={currentUserAgent?._id}
+				/>
 			</main>
 		);
 	}
 
-	// PROJECT VIEW (main kanban)
-	const displayColumns = showArchived ? [...projectColumns, archivedColumn] : projectColumns;
-	const archivedCount = projects?.filter((p) => p.status === "archived").length || 0;
+	// IDEAS tab
+	if (activeTab === "ideas") {
+		return (
+			<main className="[grid-area:main] bg-secondary flex min-h-0 flex-col overflow-hidden">
+				{renderTabBar()}
+				<IdeasView
+					projects={ideaProjects as unknown as Array<ProjectData & { _creationTime: number }>}
+					onAddIdea={() => setShowAddIdeaModal(true)}
+				/>
+				{showAddIdeaModal && (
+					<AddIdeaModal onClose={() => setShowAddIdeaModal(false)} />
+				)}
+			</main>
+		);
+	}
 
+	// ARCHIVED tab
+	if (activeTab === "archived") {
+		return (
+			<main className="[grid-area:main] bg-secondary flex min-h-0 flex-col overflow-hidden">
+				{renderTabBar()}
+				<ArchivedView projects={archivedProjects as unknown as ProjectData[]} />
+			</main>
+		);
+	}
+
+	// BOARD tab (default) — Project Kanban
 	return (
 		<main className="[grid-area:main] bg-secondary flex min-h-0 flex-col overflow-hidden">
+			{renderTabBar()}
+
 			<div className="shrink-0 flex items-center justify-between px-6 py-5 bg-card border-b border-border">
 				<div className="text-[11px] font-bold tracking-widest text-muted-foreground flex items-center gap-2">
 					<span className="w-1.5 h-1.5 bg-[var(--accent-orange)] rounded-full" />{" "}
@@ -430,24 +387,8 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 						<IconPlus size={14} /> New Project
 					</button>
 					<div className="text-[11px] font-semibold px-3 py-1 rounded bg-muted text-muted-foreground">
-						{projects?.filter((p) => p.status !== "complete" && p.status !== "archived").length || 0} active
+						{projects?.filter((p) => p.status !== "complete" && p.status !== "archived" && p.status !== "idea").length || 0} active
 					</div>
-					<button
-						onClick={() => setShowArchived(!showArchived)}
-						className={`text-[11px] font-semibold px-3 py-1 rounded flex items-center gap-1.5 transition-colors ${
-							showArchived
-								? "bg-[var(--accent-blue)] text-white"
-								: "bg-muted text-muted-foreground hover:bg-muted"
-						}`}
-					>
-						<IconArchive size={14} />
-						{showArchived ? "Hide Archived" : "Archived"}
-						{archivedCount > 0 && (
-							<span className={`px-1.5 rounded-full text-[10px] ${showArchived ? "bg-card/20" : "bg-accent"}`}>
-								{archivedCount}
-							</span>
-						)}
-					</button>
 				</div>
 			</div>
 
@@ -456,8 +397,8 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 				onDragStart={handleDragStartProject}
 				onDragEnd={handleDragEndProject}
 			>
-				<div className={`flex-1 min-h-0 grid gap-px bg-border overflow-x-auto overflow-y-hidden ${showArchived ? "grid-cols-5" : "grid-cols-4"}`}>
-					{displayColumns.map((col) => (
+				<div className="flex-1 min-h-0 grid grid-cols-4 gap-px bg-border overflow-x-auto overflow-y-hidden">
+					{projectColumns.map((col) => (
 						<KanbanColumn
 							key={col.id}
 							column={col}

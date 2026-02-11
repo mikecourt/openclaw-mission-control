@@ -34,6 +34,7 @@ export default defineSchema({
 		name: v.string(),
 		description: v.string(),
 		status: v.union(
+			v.literal("idea"),
 			v.literal("planning"),
 			v.literal("active"),
 			v.literal("paused"),

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { Id } from "../../convex/_generated/dataModel";
-import { IconX, IconCheck, IconArrowRight, IconArrowLeft, IconMessage, IconPlayerPlay } from "@tabler/icons-react";
+import { IconX, IconCheck, IconArrowRight, IconMessage, IconPlayerPlay } from "@tabler/icons-react";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 
 interface TriageModalProps {

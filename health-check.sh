@@ -13,7 +13,7 @@ else
     ISSUES=$((ISSUES + 1))
     
     # Try to restart it
-    cd /Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex
+    cd /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
     nohup npx vite --port 3002 --host 0.0.0.0 > /tmp/mc-vite.log 2>&1 &
     REPORT="$REPORT\n🔄 Attempting restart..."
 fi
@@ -28,7 +28,7 @@ else
 fi
 
 # 3. Check for GitHub updates
-cd /Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex
+cd /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
 git fetch origin 2>/dev/null
 LOCAL=$(git rev-parse HEAD 2>/dev/null)
 REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)

@@ -3,7 +3,7 @@
 ## Installation Summary
 
 **Date:** 2026-02-09  
-**Location:** `/Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex`  
+**Location:** `/Users/aidenhdee/.openclaw/shared/projects/mission-control-convex`  
 **Repository:** https://github.com/manish-raana/openclaw-mission-control  
 **Author:** manish-raana
 
@@ -14,12 +14,12 @@
 ### 1. Repository Cloned
 ```bash
 git clone https://github.com/manish-raana/openclaw-mission-control.git \
-  /Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex
+  /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
 ```
 
 ### 2. Dependencies Installed
 ```bash
-cd /Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex
+cd /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
 npm install
 ```
 
@@ -96,7 +96,7 @@ npx vite --port 3002 --host 0.0.0.0
 
 The project includes a comprehensive hook handler at:
 ```
-/Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex/hooks/mission-control/handler.ts
+/Users/aidenhdee/.openclaw/shared/projects/mission-control-convex/hooks/mission-control/handler.ts
 ```
 
 ### What the Hook Does
@@ -160,7 +160,7 @@ POST https://qualified-sheep-733.convex.site/openclaw/event
 ```bash
 # Copy the hook handler
 mkdir -p ~/.openclaw/hooks/mission-control
-cp /Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex/hooks/mission-control/handler.ts \
+cp /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex/hooks/mission-control/handler.ts \
    ~/.openclaw/hooks/mission-control/handler.ts
 ```
 
@@ -169,7 +169,7 @@ cp /Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex/hooks/mi
 ```bash
 # Symlink for automatic updates when handler.ts changes
 mkdir -p ~/.openclaw/hooks
-ln -s /Users/aidenhdee/.openclaw/workspace/projects/mission-control-convex/hooks/mission-control \
+ln -s /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex/hooks/mission-control \
       ~/.openclaw/hooks/mission-control
 ```
 
@@ -333,7 +333,7 @@ After setup, all agent runs will automatically:
 
 ### To Compare Versions:
 
-1. **Inspect crshdn version** at `/Users/aidenhdee/.openclaw/workspace/projects/mission-control-app`
+1. **Inspect crshdn version** at `/Users/aidenhdee/.openclaw/shared/projects/mission-control-app`
 2. **Document its features** in a similar format
 3. **Run both side-by-side** (different ports) and compare UX
 4. **Load test** with multiple simultaneous agent runs
