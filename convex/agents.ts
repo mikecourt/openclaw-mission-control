@@ -19,6 +19,7 @@ export const updateStatus = mutation({
       v.literal("idle"),
       v.literal("active"),
       v.literal("blocked"),
+      v.literal("off"),
     ),
   },
   handler: async (ctx, args) => {
@@ -35,10 +36,15 @@ export const createAgent = mutation({
     role: v.string(),
     level: v.union(v.literal("LEAD"), v.literal("INT"), v.literal("SPC")),
     avatar: v.string(),
-    status: v.union(v.literal("idle"), v.literal("active"), v.literal("blocked")),
+    status: v.union(v.literal("idle"), v.literal("active"), v.literal("blocked"), v.literal("off")),
     systemPrompt: v.optional(v.string()),
     character: v.optional(v.string()),
     lore: v.optional(v.string()),
+    reportsTo: v.optional(v.id("agents")),
+    canInteractWith: v.optional(v.union(
+      v.literal("any"),
+      v.array(v.id("agents")),
+    )),
     tenantId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -51,6 +57,8 @@ export const createAgent = mutation({
       systemPrompt: args.systemPrompt,
       character: args.character,
       lore: args.lore,
+      reportsTo: args.reportsTo,
+      canInteractWith: args.canInteractWith,
       tenantId: args.tenantId,
     });
   },
@@ -64,10 +72,15 @@ export const updateAgent = mutation({
     role: v.optional(v.string()),
     level: v.optional(v.union(v.literal("LEAD"), v.literal("INT"), v.literal("SPC"))),
     avatar: v.optional(v.string()),
-    status: v.optional(v.union(v.literal("idle"), v.literal("active"), v.literal("blocked"))),
+    status: v.optional(v.union(v.literal("idle"), v.literal("active"), v.literal("blocked"), v.literal("off"))),
     systemPrompt: v.optional(v.string()),
     character: v.optional(v.string()),
     lore: v.optional(v.string()),
+    reportsTo: v.optional(v.id("agents")),
+    canInteractWith: v.optional(v.union(
+      v.literal("any"),
+      v.array(v.id("agents")),
+    )),
   },
   handler: async (ctx, args) => {
     const agent = await ctx.db.get("agents", args.id);
@@ -82,6 +95,36 @@ export const updateAgent = mutation({
     }
 
     await ctx.db.patch(id, filteredUpdates);
+  },
+});
+
+export const updateStatusByName = mutation({
+  args: {
+    tenantId: v.string(),
+    agentName: v.string(),
+    status: v.union(
+      v.literal("idle"),
+      v.literal("active"),
+      v.literal("blocked"),
+      v.literal("off"),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const agent = await ctx.db
+      .query("agents")
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("name"), args.agentName),
+          q.eq(q.field("tenantId"), args.tenantId),
+        ),
+      )
+      .first();
+
+    if (!agent) {
+      throw new Error(`Agent "${args.agentName}" not found`);
+    }
+
+    await ctx.db.patch(agent._id, { status: args.status });
   },
 });
 

@@ -43,6 +43,19 @@ export const receiveAgentEvent = mutation({
 				path: v.optional(v.string()),
 			})
 		),
+		// Cost/usage data from hook
+		costData: v.optional(v.object({
+			totalCost: v.number(),
+			totalTokens: v.number(),
+			models: v.array(v.object({
+				model: v.string(),
+				inputTokens: v.number(),
+				outputTokens: v.number(),
+				cacheReadTokens: v.optional(v.number()),
+				cacheWriteTokens: v.optional(v.number()),
+				cost: v.number(),
+			})),
+		})),
 	},
 	handler: async (ctx, args) => {
 		// Find existing task by runId
@@ -67,47 +80,50 @@ export const receiveAgentEvent = mutation({
 			}
 		}
 
-			const tenantId = task?.tenantId ?? DEFAULT_TENANT_ID;
+		const tenantId = task?.tenantId ?? DEFAULT_TENANT_ID;
 
-			// Find or create system agent
-			let systemAgent = await ctx.db
-				.query("agents")
-				.filter((q) =>
-					q.and(
-						q.eq(q.field("name"), SYSTEM_AGENT_NAME),
-						q.eq(q.field("tenantId"), tenantId),
-					),
-				)
-				.first();
+		// Find or create system agent
+		let systemAgent = await ctx.db
+			.query("agents")
+			.filter((q) =>
+				q.and(
+					q.eq(q.field("name"), SYSTEM_AGENT_NAME),
+					q.eq(q.field("tenantId"), tenantId),
+				),
+			)
+			.first();
 
 		if (!systemAgent) {
 			const agentId = await ctx.db.insert("agents", {
 				name: SYSTEM_AGENT_NAME,
-					role: "AI Assistant",
-					status: "active",
-					level: "SPC",
-					avatar: "🤖",
-					tenantId,
-				});
-				systemAgent = await ctx.db.get(agentId);
-			}
+				role: "AI Assistant",
+				status: "active",
+				level: "SPC",
+				avatar: "\u{1F916}",
+				tenantId,
+			});
+			systemAgent = await ctx.db.get(agentId);
+		}
 
-			const namedAgent = args.agentId
-				? await ctx.db
-						.query("agents")
-						.filter((q) =>
-							q.and(
-								q.eq(q.field("name"), args.agentId),
-								q.eq(q.field("tenantId"), tenantId),
-							),
-						)
-						.first()
-				: null;
+		const namedAgent = args.agentId
+			? await ctx.db
+					.query("agents")
+					.filter((q) =>
+						q.and(
+							q.eq(q.field("name"), args.agentId),
+							q.eq(q.field("tenantId"), tenantId),
+						),
+					)
+					.first()
+			: null;
 
 		const agent = namedAgent || systemAgent;
 		const now = Date.now();
 
 		if (args.action === "start") {
+			if (namedAgent) {
+				await ctx.db.patch(namedAgent._id, { status: "active" });
+			}
 			if (!task) {
 				const title = args.prompt
 					? summarizePrompt(args.prompt)
@@ -115,35 +131,45 @@ export const receiveAgentEvent = mutation({
 
 				const description = args.prompt || `OpenClaw agent task\nRun ID: ${args.runId}`;
 
+				// Map source to task source field
+				const sourceMap: Record<string, string> = {
+					telegram: "telegram",
+					Telegram: "telegram",
+					webchat: "webchat",
+					Webchat: "webchat",
+				};
+				const taskSource = args.source ? (sourceMap[args.source] || "agent") : "agent";
+
 				const taskId = await ctx.db.insert("tasks", {
 					title,
 					description,
 					status: "in_progress",
 					assigneeIds: agent ? [agent._id] : [],
 					tags: ["openclaw"],
-						sessionKey: args.sessionKey ?? undefined,
-						openclawRunId: args.runId,
-						startedAt: now,
-						tenantId,
-					});
+					sessionKey: args.sessionKey ?? undefined,
+					openclawRunId: args.runId,
+					startedAt: now,
+					source: taskSource as any,
+					tenantId,
+				});
 
 				if (agent) {
 					const sourcePrefix = args.source ? `**${args.source}:** ` : "";
 					await ctx.db.insert("messages", {
 						taskId,
-							fromAgentId: agent._id,
-							content: `🚀 **Started**\n\n${sourcePrefix}${args.prompt || "N/A"}`,
-							attachments: [],
-							tenantId,
-						});
+						fromAgentId: agent._id,
+						content: `\u{1F680} **Started**\n\n${sourcePrefix}${args.prompt || "N/A"}`,
+						attachments: [],
+						tenantId,
+					});
 
 					await ctx.db.insert("activities", {
 						type: "status_update",
-							agentId: agent._id,
-							message: `started "${title}"`,
-							targetId: taskId,
-							tenantId,
-						});
+						agentId: agent._id,
+						message: `started "${title}"`,
+						targetId: taskId,
+						tenantId,
+					});
 				}
 			} else if (args.prompt && task.title.startsWith("Agent task")) {
 				const title = summarizePrompt(args.prompt);
@@ -159,11 +185,11 @@ export const receiveAgentEvent = mutation({
 		} else if (args.action === "progress" && task && agent) {
 			await ctx.db.insert("messages", {
 				taskId: task._id,
-					fromAgentId: agent._id,
-					content: args.message || "Progress update",
-					attachments: [],
-					tenantId,
-				});
+				fromAgentId: agent._id,
+				content: args.message || "Progress update",
+				attachments: [],
+				tenantId,
+			});
 
 			// Flag coding tool usage based on tool:start events
 			if (args.eventType === "tool:start" && args.message && !task.usedCodingTools) {
@@ -173,30 +199,66 @@ export const receiveAgentEvent = mutation({
 				}
 			}
 		} else if (args.action === "end" && task) {
-			// Move to review if:
-			// - The agent asks a question (needs user feedback), or
-			// - Coding tools (edit, exec, bash) were used, or
-			// - Code-type documents were created for this task
-			// Otherwise, mark as done.
 			const needsFeedback = args.response ? args.response.includes("?") : false;
 
 			let isCodingTask = task.usedCodingTools ?? false;
 			if (!isCodingTask) {
 				const codeDocs = await ctx.db
 					.query("documents")
-						.filter((q) =>
-							q.and(
-								q.eq(q.field("tenantId"), tenantId),
-								q.eq(q.field("taskId"), task._id),
-								q.eq(q.field("type"), "code")
-							)
+					.filter((q) =>
+						q.and(
+							q.eq(q.field("tenantId"), tenantId),
+							q.eq(q.field("taskId"), task._id),
+							q.eq(q.field("type"), "code")
+						)
 					)
 					.first();
 				isCodingTask = codeDocs !== null;
 			}
 
 			const endStatus = needsFeedback || isCodingTask ? "review" : "done";
-			await ctx.db.patch(task._id, { status: endStatus });
+
+			// Build patch with cost data if available
+			const patch: Record<string, unknown> = {
+				status: endStatus,
+				needsInput: needsFeedback || undefined,
+			};
+
+			if (args.costData) {
+				patch.totalCost = (task.totalCost || 0) + args.costData.totalCost;
+				patch.totalTokens = (task.totalTokens || 0) + args.costData.totalTokens;
+			}
+
+			await ctx.db.patch(task._id, patch);
+
+			// Record usage data per model
+			if (args.costData) {
+				for (const modelData of args.costData.models) {
+					await ctx.db.insert("usage", {
+						taskId: task._id,
+						projectId: task.projectId,
+						agentId: args.agentId ?? undefined,
+						model: modelData.model,
+						inputTokens: modelData.inputTokens,
+						outputTokens: modelData.outputTokens,
+						cacheReadTokens: modelData.cacheReadTokens,
+						cacheWriteTokens: modelData.cacheWriteTokens,
+						cost: modelData.cost,
+						runId: args.runId,
+						tenantId,
+					});
+				}
+
+				// Update project cost if task belongs to a project
+				if (task.projectId) {
+					const project = await ctx.db.get(task.projectId);
+					if (project) {
+						await ctx.db.patch(task.projectId, {
+							totalCost: (project.totalCost || 0) + args.costData.totalCost,
+						});
+					}
+				}
+			}
 
 			// Calculate duration
 			const startTime = task.startedAt || task._creationTime;
@@ -204,33 +266,37 @@ export const receiveAgentEvent = mutation({
 			const durationStr = formatDuration(duration);
 
 			if (agent) {
-				// Include the response and duration in the completion message
-				const icon = needsFeedback ? "❓" : "✅";
+				const icon = needsFeedback ? "\u2753" : "\u2705";
 				let completionMsg = `${icon} **${needsFeedback ? "Needs Input" : "Completed"}** in **${durationStr}**`;
+				if (args.costData) {
+					completionMsg += ` | Cost: $${args.costData.totalCost.toFixed(4)}`;
+				}
 				if (args.response) {
 					completionMsg += `\n\n${args.response}`;
 				}
 
 				await ctx.db.insert("messages", {
 					taskId: task._id,
-						fromAgentId: agent._id,
-						content: completionMsg,
-						attachments: [],
-						tenantId,
-					});
+					fromAgentId: agent._id,
+					content: completionMsg,
+					attachments: [],
+					tenantId,
+				});
 
 				await ctx.db.insert("activities", {
 					type: "status_update",
-						agentId: agent._id,
-						message: `${needsFeedback ? "needs input on" : "completed"} "${task.title}" in ${durationStr}`,
-						targetId: task._id,
-						tenantId,
-					});
+					agentId: agent._id,
+					message: `${needsFeedback ? "needs input on" : "completed"} "${task.title}" in ${durationStr}`,
+					targetId: task._id,
+					tenantId,
+				});
+			}
+			if (namedAgent) {
+				await ctx.db.patch(namedAgent._id, { status: "idle", currentTaskId: undefined });
 			}
 		} else if (args.action === "error" && task) {
-			await ctx.db.patch(task._id, { status: "review" });
+			await ctx.db.patch(task._id, { status: "review", needsInput: true });
 
-			// Calculate duration even for errors
 			const startTime = task.startedAt || task._creationTime;
 			const duration = now - startTime;
 			const durationStr = formatDuration(duration);
@@ -238,33 +304,34 @@ export const receiveAgentEvent = mutation({
 			if (agent) {
 				await ctx.db.insert("messages", {
 					taskId: task._id,
-						fromAgentId: agent._id,
-						content: `❌ **Error** after **${durationStr}**\n\n${args.error || "Unknown error"}`,
-						attachments: [],
-						tenantId,
-					});
+					fromAgentId: agent._id,
+					content: `\u274C **Error** after **${durationStr}**\n\n${args.error || "Unknown error"}`,
+					attachments: [],
+					tenantId,
+				});
 
 				await ctx.db.insert("activities", {
 					type: "status_update",
-						agentId: agent._id,
-						message: `error on "${task.title}" after ${durationStr}`,
-						targetId: task._id,
-						tenantId,
-					});
+					agentId: agent._id,
+					message: `error on "${task.title}" after ${durationStr}`,
+					targetId: task._id,
+					tenantId,
+				});
+			}
+			if (namedAgent) {
+				await ctx.db.patch(namedAgent._id, { status: "idle" });
 			}
 		} else if (args.action === "document" && args.document && agent) {
-			// Create document linked to the task
 			const docId = await ctx.db.insert("documents", {
 				title: args.document.title,
 				content: args.document.content,
 				type: args.document.type,
-					path: args.document.path,
-					taskId: task?._id,
-					createdByAgentId: agent._id,
-					tenantId,
-				});
+				path: args.document.path,
+				taskId: task?._id,
+				createdByAgentId: agent._id,
+				tenantId,
+			});
 
-			// Add activity for document creation
 			let activityMsg = `created document "${args.document.title}"`;
 			if (task) {
 				activityMsg += ` for "${task.title}"`;
@@ -272,21 +339,20 @@ export const receiveAgentEvent = mutation({
 
 			await ctx.db.insert("activities", {
 				type: "document_created",
-					agentId: agent._id,
-					message: activityMsg,
-					targetId: task?._id,
-					tenantId,
-				});
+				agentId: agent._id,
+				message: activityMsg,
+				targetId: task?._id,
+				tenantId,
+			});
 
-			// If there's an associated task, add a comment about the document
 			if (task) {
 				await ctx.db.insert("messages", {
 					taskId: task._id,
-						fromAgentId: agent._id,
-						content: `📄 Created document: **${args.document.title}**\n\nType: ${args.document.type}${args.document.path ? `\nPath: \`${args.document.path}\`` : ""}`,
-						attachments: [docId],
-						tenantId,
-					});
+					fromAgentId: agent._id,
+					content: `\u{1F4C4} Created document: **${args.document.title}**\n\nType: ${args.document.type}${args.document.path ? `\nPath: \`${args.document.path}\`` : ""}`,
+					attachments: [docId],
+					tenantId,
+				});
 			}
 		}
 	},
