@@ -2,7 +2,7 @@ import React from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { Id } from "../../convex/_generated/dataModel";
-import { IconArchive, IconPlayerPlay, IconLoader2 } from "@tabler/icons-react";
+import { IconArchive, IconPlayerPlay, IconLoader2, IconAlertTriangle } from "@tabler/icons-react";
 
 interface Task {
 	_id: Id<"tasks">;
@@ -13,6 +13,9 @@ interface Task {
 	tags: string[];
 	borderColor?: string;
 	lastMessageTime?: number;
+	needsInput?: boolean;
+	totalCost?: number;
+	priority?: string;
 }
 
 interface TaskCardProps {
@@ -67,7 +70,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
 						? undefined
 						: `4px solid ${task.borderColor || "transparent"}`,
 			}}
-				className={`min-w-0 bg-white rounded-lg p-3 sm:p-4 shadow-sm flex flex-col gap-3 border transition-all cursor-pointer select-none ${
+				className={`min-w-0 bg-card rounded-lg p-3 sm:p-4 shadow-sm flex flex-col gap-3 border transition-all cursor-pointer select-none ${
 				isDragging ? "dragging-card" : "hover:-translate-y-0.5 hover:shadow-md"
 			} ${
 				isSelected
@@ -80,8 +83,28 @@ const TaskCard: React.FC<TaskCardProps> = ({
 			{...listeners}
 			{...attributes}
 		>
+			{/* Needs Input Banner */}
+			{task.needsInput && (
+				<div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--accent-orange)]/15 text-[var(--accent-orange)] rounded text-[10px] font-bold">
+					<IconAlertTriangle size={12} />
+					Needs your input
+				</div>
+			)}
+
 			<div className="flex justify-between text-muted-foreground text-sm">
-				<span className="text-base">↑</span>
+				<div className="flex items-center gap-1.5">
+					{task.priority && task.priority !== "medium" && (
+						<span className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
+							task.priority === "urgent"
+								? "bg-[var(--accent-red)]/15 text-[var(--accent-red)]"
+								: task.priority === "high"
+									? "bg-[var(--accent-orange)]/15 text-[var(--accent-orange)]"
+									: "bg-muted text-muted-foreground"
+						}`}>
+							{task.priority}
+						</span>
+					)}
+				</div>
 				<div className="flex items-center gap-2">
 					{(columnId === "inbox" || columnId === "assigned") && currentUserAgentId && onPlay && (
 						<button
@@ -136,15 +159,22 @@ const TaskCard: React.FC<TaskCardProps> = ({
 					</span>
 				)}
 			</div>
-			<div className="flex flex-wrap gap-1.5">
-				{task.tags.map((tag) => (
-					<span
-						key={tag}
-						className="text-[10px] px-2 py-0.5 bg-muted rounded font-medium text-muted-foreground"
-					>
-						{tag}
+			<div className="flex justify-between items-center">
+				<div className="flex flex-wrap gap-1.5">
+					{task.tags.map((tag) => (
+						<span
+							key={tag}
+							className="text-[10px] px-2 py-0.5 bg-muted rounded font-medium text-muted-foreground"
+						>
+							{tag}
+						</span>
+					))}
+				</div>
+				{(task.totalCost ?? 0) > 0 && (
+					<span className="text-[10px] font-mono text-muted-foreground">
+						${(task.totalCost ?? 0).toFixed(2)}
 					</span>
-				))}
+				)}
 			</div>
 		</div>
 	);

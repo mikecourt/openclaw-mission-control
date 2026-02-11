@@ -11,8 +11,10 @@ import TrayContainer from "./components/Trays/TrayContainer";
 import SignInForm from "./components/SignIn";
 import TaskDetailPanel from "./components/TaskDetailPanel";
 import AddTaskModal from "./components/AddTaskModal";
+import AddProjectModal from "./components/AddProjectModal";
 import AddAgentModal from "./components/AddAgentModal";
 import AgentDetailTray from "./components/AgentDetailTray";
+import TriageModal from "./components/TriageModal";
 
 export default function App() {
 	const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
@@ -45,6 +47,10 @@ export default function App() {
 	const [addTaskPreselectedAgentId, setAddTaskPreselectedAgentId] = useState<string | undefined>(undefined);
 	const [selectedAgentId, setSelectedAgentId] = useState<Id<"agents"> | null>(null);
 	const [showAddAgentModal, setShowAddAgentModal] = useState(false);
+	const [selectedProjectId, setSelectedProjectId] = useState<Id<"projects"> | null>(null);
+	const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+	const [addTaskPreselectedProjectId, setAddTaskPreselectedProjectId] = useState<Id<"projects"> | undefined>(undefined);
+	const [showTriageModal, setShowTriageModal] = useState(false);
 
 	// Document tray state
 	const [selectedDocumentId, setSelectedDocumentId] = useState<Id<"documents"> | null>(null);
@@ -98,6 +104,7 @@ export default function App() {
 							setIsRightSidebarOpen(true);
 							setIsLeftSidebarOpen(false);
 						}}
+						onOpenTriage={() => setShowTriageModal(true)}
 					/>
 
 					{isAnySidebarOpen && (
@@ -121,6 +128,13 @@ export default function App() {
 					<MissionQueue
 						selectedTaskId={selectedTaskId}
 						onSelectTask={setSelectedTaskId}
+						selectedProjectId={selectedProjectId}
+						onSelectProject={setSelectedProjectId}
+						onAddProject={() => setShowAddProjectModal(true)}
+						onAddTask={() => {
+							setAddTaskPreselectedProjectId(selectedProjectId ?? undefined);
+							setShowAddTaskModal(true);
+						}}
 					/>
 					<RightSidebar
 						isOpen={isRightSidebarOpen}
@@ -142,13 +156,25 @@ export default function App() {
 							onClose={() => {
 								setShowAddTaskModal(false);
 								setAddTaskPreselectedAgentId(undefined);
+								setAddTaskPreselectedProjectId(undefined);
 							}}
 							onCreated={(taskId) => {
 								setShowAddTaskModal(false);
 								setAddTaskPreselectedAgentId(undefined);
+								setAddTaskPreselectedProjectId(undefined);
 								setSelectedTaskId(taskId);
 							}}
 							initialAssigneeId={addTaskPreselectedAgentId}
+							initialProjectId={addTaskPreselectedProjectId}
+						/>
+					)}
+					{showAddProjectModal && (
+						<AddProjectModal
+							onClose={() => setShowAddProjectModal(false)}
+							onCreated={(projectId) => {
+								setShowAddProjectModal(false);
+								setSelectedProjectId(projectId);
+							}}
 						/>
 					)}
 					{selectedAgentId && (
@@ -166,6 +192,15 @@ export default function App() {
 						<AddAgentModal
 							onClose={() => setShowAddAgentModal(false)}
 							onCreated={() => setShowAddAgentModal(false)}
+						/>
+					)}
+					{showTriageModal && (
+						<TriageModal
+							onClose={() => setShowTriageModal(false)}
+							onSelectTask={(taskId) => {
+								setShowTriageModal(false);
+								setSelectedTaskId(taskId);
+							}}
 						/>
 					)}
           {selectedTaskId && (

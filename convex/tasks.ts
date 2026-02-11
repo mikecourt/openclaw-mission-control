@@ -28,14 +28,21 @@ export const updateStatus = mutation({
   },
   handler: async (ctx, args) => {
     const task = requireTenant(
-      await ctx.db.get("tasks", args.taskId),
+      await ctx.db.get(args.taskId),
       args.tenantId,
       "Task"
     );
 
-    requireTenant(await ctx.db.get("agents", args.agentId), args.tenantId, "Agent");
+    requireTenant(await ctx.db.get(args.agentId), args.tenantId, "Agent");
 
-    await ctx.db.patch(args.taskId, { status: args.status });
+    const patch: Record<string, unknown> = { status: args.status };
+    const wasNeedsInput = task.needsInput;
+    // Clear needsInput when moving out of review
+    if (args.status !== "review" && task.needsInput) {
+      patch.needsInput = false;
+    }
+
+    await ctx.db.patch(args.taskId, patch);
 
     await ctx.db.insert("activities", {
       type: "status_update",
@@ -44,6 +51,17 @@ export const updateStatus = mutation({
       targetId: args.taskId,
       tenantId: args.tenantId,
     });
+
+    // Log as a decision when resolving a needsInput task
+    if (wasNeedsInput && args.status !== "review") {
+      await ctx.db.insert("activities", {
+        type: "needs_input_resolved",
+        agentId: args.agentId,
+        message: `resolved input needed on "${task.title}" → ${args.status}`,
+        targetId: args.taskId,
+        tenantId: args.tenantId,
+      });
+    }
   },
 });
 
@@ -56,15 +74,15 @@ export const updateAssignees = mutation({
   },
   handler: async (ctx, args) => {
     const task = requireTenant(
-      await ctx.db.get("tasks", args.taskId),
+      await ctx.db.get(args.taskId),
       args.tenantId,
       "Task"
     );
 
-    requireTenant(await ctx.db.get("agents", args.agentId), args.tenantId, "Agent");
+    requireTenant(await ctx.db.get(args.agentId), args.tenantId, "Agent");
 
     for (const assigneeId of args.assigneeIds) {
-      requireTenant(await ctx.db.get("agents", assigneeId), args.tenantId, "Assignee");
+      requireTenant(await ctx.db.get(assigneeId), args.tenantId, "Assignee");
     }
 
     await ctx.db.patch(args.taskId, { assigneeIds: args.assigneeIds });
@@ -86,6 +104,10 @@ export const createTask = mutation({
     status: v.string(),
     tags: v.array(v.string()),
     borderColor: v.optional(v.string()),
+    projectId: v.optional(v.id("projects")),
+    priority: v.optional(v.string()),
+    dueDate: v.optional(v.number()),
+    source: v.optional(v.string()),
     tenantId: v.string(),
   },
   handler: async (ctx, args) => {
@@ -96,6 +118,10 @@ export const createTask = mutation({
       assigneeIds: [],
       tags: args.tags,
       borderColor: args.borderColor,
+      projectId: args.projectId,
+      priority: args.priority as any,
+      dueDate: args.dueDate,
+      source: (args.source as any) || "manual",
       tenantId: args.tenantId,
     });
     return taskId;
@@ -110,12 +136,12 @@ export const archiveTask = mutation({
   },
   handler: async (ctx, args) => {
     const task = requireTenant(
-      await ctx.db.get("tasks", args.taskId),
+      await ctx.db.get(args.taskId),
       args.tenantId,
       "Task"
     );
 
-    requireTenant(await ctx.db.get("agents", args.agentId), args.tenantId, "Agent");
+    requireTenant(await ctx.db.get(args.agentId), args.tenantId, "Agent");
 
     await ctx.db.patch(args.taskId, { status: "archived" });
 
@@ -136,7 +162,7 @@ export const linkRun = mutation({
     tenantId: v.string(),
   },
   handler: async (ctx, args) => {
-    requireTenant(await ctx.db.get("tasks", args.taskId), args.tenantId, "Task");
+    requireTenant(await ctx.db.get(args.taskId), args.tenantId, "Task");
 
     await ctx.db.patch(args.taskId, {
       openclawRunId: args.openclawRunId,
@@ -152,18 +178,23 @@ export const updateTask = mutation({
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     tags: v.optional(v.array(v.string())),
+    projectId: v.optional(v.id("projects")),
+    priority: v.optional(v.string()),
+    dueDate: v.optional(v.number()),
+    blockedBy: v.optional(v.string()),
+    needsInput: v.optional(v.boolean()),
     agentId: v.id("agents"),
   },
   handler: async (ctx, args) => {
     const task = requireTenant(
-      await ctx.db.get("tasks", args.taskId),
+      await ctx.db.get(args.taskId),
       args.tenantId,
       "Task"
     );
 
-    requireTenant(await ctx.db.get("agents", args.agentId), args.tenantId, "Agent");
+    requireTenant(await ctx.db.get(args.agentId), args.tenantId, "Agent");
 
-    const fields: any = {};
+    const fields: Record<string, unknown> = {};
     const updates: string[] = [];
 
     if (args.title !== undefined) {
@@ -178,7 +209,27 @@ export const updateTask = mutation({
       fields.tags = args.tags;
       updates.push("tags");
     }
-    
+    if (args.projectId !== undefined) {
+      fields.projectId = args.projectId;
+      updates.push("project");
+    }
+    if (args.priority !== undefined) {
+      fields.priority = args.priority;
+      updates.push("priority");
+    }
+    if (args.dueDate !== undefined) {
+      fields.dueDate = args.dueDate;
+      updates.push("due date");
+    }
+    if (args.blockedBy !== undefined) {
+      fields.blockedBy = args.blockedBy;
+      updates.push("blocker");
+    }
+    if (args.needsInput !== undefined) {
+      fields.needsInput = args.needsInput;
+      updates.push("needs input");
+    }
+
     await ctx.db.patch(args.taskId, fields);
 
     if (updates.length > 0) {

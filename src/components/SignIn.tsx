@@ -1,5 +1,5 @@
 import { useAuthActions } from "@convex-dev/auth/react";
-import { IconEye, IconEyeOff } from "@tabler/icons-react";
+import { IconEye, IconEyeOff, IconAirTrafficControl } from "@tabler/icons-react";
 import { useState } from "react";
 
 function SignInForm() {
@@ -13,12 +13,10 @@ function SignInForm() {
 			<div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card shadow-xl transition-all duration-300 hover:shadow-2xl">
 				<div className="bg-muted/30 p-8 text-center border-b border-border">
 					<div className="mb-4 flex justify-center">
-						<span className="text-4xl text-[var(--accent-orange)] drop-shadow-sm">
-							◇
-						</span>
+						<IconAirTrafficControl size={40} className="text-[var(--accent-orange)] drop-shadow-sm" />
 					</div>
 					<h1 className="text-2xl font-bold tracking-wider text-foreground uppercase">
-						Mission Control
+						Control Tower
 					</h1>
 					<p className="mt-2 text-sm text-muted-foreground font-medium">
 						{flow === "signIn"
@@ -52,7 +50,7 @@ function SignInForm() {
 									className="w-full bg-background text-foreground rounded-lg p-3 border border-border focus:border-[var(--accent-orange)] focus:ring-1 focus:ring-[var(--accent-orange)] outline-none transition-all placeholder:text-muted-foreground/50"
 									type="email"
 									name="email"
-									placeholder="commander@mission.control"
+									placeholder="commander@control.tower"
 									required
 								/>
 							</div>

@@ -1,8 +1,8 @@
-# OpenClaw Integration for Mission Control
+# OpenClaw Integration for Control Tower
 
 ## Overview
 
-Mission Control integrates with OpenClaw to automatically track agent tasks in real-time without polling. When an OpenClaw agent runs, tasks appear on the board and are tracked through completion with status updates, progress comments, and duration tracking.
+Control Tower integrates with OpenClaw to automatically track agent tasks in real-time without polling. When an OpenClaw agent runs, tasks appear on the board and are tracked through completion with status updates, progress comments, and duration tracking.
 
 **Key constraint:** No modifications to OpenClaw source code. Integration achieved entirely through user-installed hooks and configuration.
 
@@ -28,7 +28,7 @@ OpenClaw Lifecycle → emitAgentEvent() → onAgentEvent() listener → HTTP POS
 | **Duration Tracking** | Shows how long each agent run took (e.g., "Completed in 2m 15s") |
 | **Source Detection** | Messages from Telegram, Discord, etc. show source prefix in comments |
 | **Markdown Comments** | Progress updates render with full markdown support |
-| **Agent Matching** | OpenClaw agents map to Mission Control agents by name |
+| **Agent Matching** | OpenClaw agents map to Control Tower agents by name |
 | **Progress Updates** | Tool usage and thinking events appear as task comments |
 
 ## How It Works
@@ -39,11 +39,11 @@ OpenClaw Lifecycle → emitAgentEvent() → onAgentEvent() listener → HTTP POS
 4. **Registers a persistent listener** - watches for lifecycle events (`stream: "lifecycle"`)
 5. **Extracts user prompt** - reads from session JSONL file at `~/.openclaw/agents/{agentId}/sessions/{sessionId}.jsonl`
 6. **Cleans metadata** - strips channel metadata (Telegram, Discord, etc.) while preserving source
-7. **POSTs to Mission Control** - on `phase: "start"` / `phase: "end"` / `phase: "error"`
+7. **POSTs to Control Tower** - on `phase: "start"` / `phase: "end"` / `phase: "error"`
 
 ## Files
 
-### Mission Control (this repo)
+### Control Tower (this repo)
 
 | File | Purpose |
 |------|---------|
@@ -226,7 +226,7 @@ openclaw gateway restart
 
 ## Agent Mapping
 
-OpenClaw agents are matched to Mission Control agents by name. Create agents in Mission Control that match your OpenClaw agent IDs.
+OpenClaw agents are matched to Control Tower agents by name. Create agents in Control Tower that match your OpenClaw agent IDs.
 
 If no match is found, a system "OpenClaw" agent is created/used.
 
@@ -234,7 +234,7 @@ If no match is found, a system "OpenClaw" agent is created/used.
 
 ## Verification
 
-1. Start Mission Control: `bun dev`
+1. Start Control Tower: `bun dev`
 2. Ensure hook is configured with correct URL
 3. Restart OpenClaw gateway
 4. Run an agent: `openclaw agent -m "Test task"`
@@ -247,7 +247,7 @@ If no match is found, a system "OpenClaw" agent is created/used.
 
 ## Summary
 
-**Mission Control:**
+**Control Tower:**
 - 3 files modified (`convex/schema.ts`, `convex/http.ts`, `convex/queries.ts`)
 - 1 file created (`convex/openclaw.ts`)
 

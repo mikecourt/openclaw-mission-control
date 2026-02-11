@@ -2,6 +2,7 @@ import React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
+import AgentAvatar from "./AgentAvatar";
 
 type AgentsSidebarProps = {
 	isOpen?: boolean;
@@ -19,20 +20,24 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 	onSelectAgent,
 }) => {
 	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+	const utilization = useQuery(api.queries.getAgentUtilization, { tenantId: DEFAULT_TENANT_ID });
 	const updateStatus = useMutation(api.agents.updateStatus);
 	const deleteAgent = useMutation(api.agents.deleteAgent);
+
+	const getUtilization = (agentId: string) =>
+		utilization?.find((u) => u.agentId === agentId);
 
 	if (agents === undefined) {
 		return (
 			<aside
-				className={`[grid-area:left-sidebar] sidebar-drawer sidebar-drawer--left bg-white border-r border-border flex flex-col overflow-hidden animate-pulse ${isOpen ? "is-open" : ""}`}
+				className={`[grid-area:left-sidebar] sidebar-drawer sidebar-drawer--left bg-card border-r border-border flex flex-col overflow-hidden animate-pulse ${isOpen ? "is-open" : ""}`}
 				aria-label="Agents"
 			>
 				<div className="px-6 py-5 border-b border-border h-[65px] bg-muted/20" />
 				<div className="flex-1 space-y-4 p-6">
 					{[...Array(8)].map((_, i) => (
 						<div key={i} className="flex gap-3 items-center">
-							<div className="w-10 h-10 bg-muted rounded-full" />
+							<div className="w-[50px] h-[50px] bg-muted rounded-full" />
 							<div className="flex-1 space-y-2">
 								<div className="h-3 bg-muted rounded w-24" />
 								<div className="h-2 bg-muted rounded w-16" />
@@ -46,7 +51,7 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 
 	return (
 		<aside
-			className={`[grid-area:left-sidebar] sidebar-drawer sidebar-drawer--left bg-white border-r border-border flex flex-col overflow-hidden ${isOpen ? "is-open" : ""}`}
+			className={`[grid-area:left-sidebar] sidebar-drawer sidebar-drawer--left bg-card border-r border-border flex flex-col overflow-hidden ${isOpen ? "is-open" : ""}`}
 			aria-label="Agents"
 		>
 			<div className="flex items-center justify-between px-6 py-5 border-b border-border">
@@ -112,55 +117,77 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 						>
 							<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/></svg>
 						</button>
-						<div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center text-xl border border-border group-hover:bg-white transition-colors">
-							{agent.avatar}
-						</div>
-						<div className="flex-1">
+						<AgentAvatar name={agent.name} avatar={agent.avatar} size={50} />
+						<div className="flex-1 min-w-0">
 							<div className="flex items-center gap-1.5 mb-0.5">
 								<span className="text-sm font-semibold text-foreground">
 									{agent.name}
 								</span>
-								<span
-									className={`text-[9px] font-bold px-1 py-0.5 rounded text-white ${
-										agent.level === "LEAD"
-											? "bg-[var(--status-lead)]"
-											: agent.level === "INT"
-												? "bg-[var(--status-int)]"
-												: "bg-[var(--status-spc)]"
-									}`}
-								>
-									{agent.level}
-								</span>
 							</div>
 							<div className="text-xs text-muted-foreground">{agent.role}</div>
+							{(() => {
+								const util = getUtilization(agent._id);
+								if (!util) return null;
+								const hasStats = util.activeCount > 0 || util.completedCount > 0 || util.totalCost > 0;
+								if (!hasStats) return null;
+								return (
+									<div className="flex items-center gap-2 mt-1">
+										{util.activeCount > 0 && (
+											<span className="text-[9px] font-semibold px-1 py-0.5 bg-[var(--accent-blue)]/15 text-[var(--accent-blue)] rounded">
+												{util.activeCount} active
+											</span>
+										)}
+										{util.completedCount > 0 && (
+											<span className="text-[9px] font-semibold px-1 py-0.5 bg-[var(--accent-green)]/15 text-[var(--accent-green)] rounded">
+												{util.completedCount} done
+											</span>
+										)}
+										{util.totalCost > 0 && (
+											<span className="text-[9px] font-mono text-muted-foreground">
+												${util.totalCost.toFixed(2)}
+											</span>
+										)}
+									</div>
+								);
+							})()}
 						</div>
 						<div className="flex items-center gap-2">
 							<button
 								type="button"
 								onClick={(e) => {
 									e.stopPropagation();
-										updateStatus({
-											id: agent._id,
-											status: agent.status === "active" ? "idle" : "active",
-											tenantId: DEFAULT_TENANT_ID,
-										});
+									const cycle: Record<string, "idle" | "active" | "blocked" | "off"> = {
+										active: "idle",
+										idle: "off",
+										off: "active",
+										blocked: "active",
+									};
+									updateStatus({
+										id: agent._id,
+										status: cycle[agent.status] ?? "active",
+										tenantId: DEFAULT_TENANT_ID,
+									});
 								}}
 								className={`text-[9px] font-bold flex items-center gap-1 tracking-wider uppercase cursor-pointer hover:opacity-70 transition-opacity ${
 									agent.status === "active"
 										? "text-[var(--status-working)]"
 										: agent.status === "blocked"
-											? "text-[var(--accent-red)]"
-											: "text-muted-foreground"
+											? "text-[var(--accent-orange)]"
+											: agent.status === "off"
+												? "text-[var(--status-off)]"
+												: "text-muted-foreground"
 								}`}
-								title={agent.status === "active" ? "Set idle" : "Set active"}
+								title={`Status: ${agent.status} — click to cycle`}
 							>
 								<span
 									className={`w-1.5 h-1.5 rounded-full ${
 										agent.status === "active"
 											? "bg-[var(--status-working)]"
 											: agent.status === "blocked"
-												? "bg-[var(--accent-red)]"
-												: "bg-muted-foreground"
+												? "bg-[var(--accent-orange)]"
+												: agent.status === "off"
+													? "bg-[var(--status-off)]"
+													: "bg-muted-foreground"
 									}`}
 								/>
 								{agent.status}

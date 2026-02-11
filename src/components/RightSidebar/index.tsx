@@ -23,7 +23,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
 
   return (
     <aside
-      className={`[grid-area:right-sidebar] sidebar-drawer sidebar-drawer--right bg-white border-l border-border flex flex-col overflow-hidden ${isOpen ? "is-open" : ""}`}
+      className={`[grid-area:right-sidebar] sidebar-drawer sidebar-drawer--right bg-card border-l border-border flex flex-col overflow-hidden ${isOpen ? "is-open" : ""}`}
       aria-label="Right sidebar"
     >
       <div className="px-6 py-5 border-b border-border flex items-center justify-between">
@@ -53,7 +53,7 @@ const RightSidebar: React.FC<RightSidebarProps> = ({
         />
       )}
 
-      <div className="p-3 flex items-center justify-center gap-2 text-[10px] font-bold text-[var(--accent-green)] bg-[#f8f9fa] border-t border-border">
+      <div className="p-3 flex items-center justify-center gap-2 text-[10px] font-bold text-[var(--accent-green)] bg-muted border-t border-border">
         <span className="w-1.5 h-1.5 bg-[var(--accent-green)] rounded-full" />
         LIVE
       </div>

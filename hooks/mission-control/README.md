@@ -1,10 +1,10 @@
-# Mission Control Hook for OpenClaw
+# Control Tower Hook for OpenClaw
 
-Syncs OpenClaw agent lifecycle events to the Mission Control dashboard for real-time task tracking.
+Syncs OpenClaw agent lifecycle events to the Control Tower dashboard for real-time task tracking.
 
 ## Status
 
-**Working** - The hook captures agent lifecycle events and syncs them to Mission Control.
+**Working** - The hook captures agent lifecycle events and syncs them to Control Tower.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ OpenClaw Gateway
     ├── agent:bootstrap → Hook captures agent start
     └── lifecycle events → Hook POSTs to Convex HTTP endpoint
                               ↓
-                        Mission Control
+                        Control Tower
                         Convex Backend
                               ↓
                         Real-time UI
@@ -72,7 +72,7 @@ openclaw hooks list
 
 Should show:
 ```
-✓ ready   │ 📊 mission-control │ Sync agent lifecycle events to Mission Control dashboard │ openclaw-managed
+✓ ready   │ 📊 mission-control │ Sync agent lifecycle events to Control Tower dashboard │ openclaw-managed
 ```
 
 Get detailed hook info:
@@ -117,13 +117,13 @@ openclaw agent --agent main -m "test message"
 openclaw logs --filter mission-control --tail 20
 ```
 
-### Check Mission Control UI
+### Check Control Tower UI
 
-Open the Mission Control dashboard to see if tasks appear in the "In Progress" column when an agent starts, and move to "Done" when complete.
+Open the Control Tower dashboard to see if tasks appear in the "In Progress" column when an agent starts, and move to "Done" when complete.
 
-## Mission Control Backend Setup
+## Control Tower Backend Setup
 
-The Mission Control Convex backend needs these files:
+The Control Tower Convex backend needs these files:
 
 ### convex/schema.ts
 Tasks table must include:
@@ -156,7 +156,7 @@ Mutation to handle events - creates/updates tasks based on agent lifecycle.
 
 1. **gateway:startup** - Hook registers `onAgentEvent()` listener
 2. **Agent starts** - `emitAgentEvent()` fires with `stream: "lifecycle"`, `phase: "start"`
-3. **Hook listener** - Receives event, POSTs to Mission Control
+3. **Hook listener** - Receives event, POSTs to Control Tower
 4. **Convex mutation** - Creates task with status `in_progress`
 5. **Agent ends** - `emitAgentEvent()` fires with `phase: "end"`
 6. **Hook listener** - POSTs end event

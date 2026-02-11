@@ -1,6 +1,15 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 
+// --- Claude Max Plan Budget Config ---
+const PLAN_CONFIG = {
+	monthlyBudget: 200,
+	weeklyBudget: 50,
+	sessionWindowBudget: 7,
+	sessionWindowMs: 5 * 60 * 60 * 1000, // 5 hours
+	MST_OFFSET_MS: 7 * 60 * 60 * 1000, // UTC-7
+};
+
 function assertTenant(
 	record: { tenantId?: string } | null,
 	tenantId: string,
@@ -624,5 +633,153 @@ export const getAgentUtilization = query({
 				totalTokens: agentTokens,
 			};
 		});
+	},
+});
+
+// --- Plan Budget Health ---
+
+export const getPlanUsage = query({
+	args: { tenantId: v.string() },
+	handler: async (ctx, args) => {
+		// Prefer real plan usage from Anthropic API if available and fresh (< 5 min)
+		const snapshot = await ctx.db
+			.query("planUsageSnapshot")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.first();
+
+		const now = Date.now();
+		const SNAPSHOT_STALE_MS = 5 * 60 * 1000; // 5 minutes
+
+		if (snapshot && (now - snapshot.fetchedAt) < SNAPSHOT_STALE_MS) {
+			const sessionResetMs = snapshot.sessionResetAt
+				? Math.max(new Date(snapshot.sessionResetAt).getTime() - now, 0)
+				: 0;
+			const weeklyResetMs = snapshot.weeklyResetAt
+				? Math.max(new Date(snapshot.weeklyResetAt).getTime() - now, 0)
+				: 0;
+
+			return {
+				session: {
+					cost: 0,
+					budget: PLAN_CONFIG.sessionWindowBudget,
+					pct: snapshot.sessionPct,
+					resetMs: sessionResetMs,
+				},
+				weekly: {
+					cost: 0,
+					budget: PLAN_CONFIG.weeklyBudget,
+					pct: snapshot.weeklyPct,
+					resetMs: weeklyResetMs,
+				},
+				monthly: { cost: 0, budget: PLAN_CONFIG.monthlyBudget, pct: 0 },
+				burnRate: { dailyAverage: 0, projectedWeekly: 0 },
+				headroom: {
+					canDispatchOpus: snapshot.sessionPct < 80 && snapshot.weeklyPct < 80,
+					suggestLocal: snapshot.sessionPct > 60 || snapshot.weeklyPct > 70,
+				},
+				source: "anthropic" as const,
+			};
+		}
+
+		// Fallback: compute from local usage records
+		const usage = await ctx.db
+			.query("usage")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.collect();
+
+		// MST-adjusted time for week/month boundaries
+		const mstNow = new Date(now - PLAN_CONFIG.MST_OFFSET_MS);
+
+		// Session window: last 5 hours
+		const sessionStart = now - PLAN_CONFIG.sessionWindowMs;
+
+		// Weekly: Monday 00:00 MST
+		const mstDay = mstNow.getUTCDay(); // 0=Sun
+		const daysSinceMonday = mstDay === 0 ? 6 : mstDay - 1;
+		const weekStartMst = new Date(mstNow);
+		weekStartMst.setUTCDate(weekStartMst.getUTCDate() - daysSinceMonday);
+		weekStartMst.setUTCHours(0, 0, 0, 0);
+		const weekStartMs = weekStartMst.getTime() + PLAN_CONFIG.MST_OFFSET_MS;
+
+		// Next Monday 00:00 MST
+		const nextMondayMst = new Date(weekStartMst);
+		nextMondayMst.setUTCDate(nextMondayMst.getUTCDate() + 7);
+		const nextMondayMs = nextMondayMst.getTime() + PLAN_CONFIG.MST_OFFSET_MS;
+
+		// Monthly: 1st of month 00:00 MST
+		const monthStartMst = new Date(mstNow);
+		monthStartMst.setUTCDate(1);
+		monthStartMst.setUTCHours(0, 0, 0, 0);
+		const monthStartMs = monthStartMst.getTime() + PLAN_CONFIG.MST_OFFSET_MS;
+
+		// Single-pass bucketing
+		let sessionCost = 0;
+		let weeklyCost = 0;
+		let monthlyCost = 0;
+		let oldestSessionTs = Infinity;
+		let weeklyRecordCount = 0;
+
+		for (const record of usage) {
+			const ts = record._creationTime;
+			if (ts >= monthStartMs) {
+				monthlyCost += record.cost;
+			}
+			if (ts >= weekStartMs) {
+				weeklyCost += record.cost;
+				weeklyRecordCount++;
+			}
+			if (ts >= sessionStart) {
+				sessionCost += record.cost;
+				if (ts < oldestSessionTs) {
+					oldestSessionTs = ts;
+				}
+			}
+		}
+
+		// Session reset: time until oldest record in window rolls out
+		const sessionResetMs =
+			oldestSessionTs === Infinity
+				? 0
+				: oldestSessionTs + PLAN_CONFIG.sessionWindowMs - now;
+
+		// Weekly reset: time until next Monday 00:00 MST
+		const weeklyResetMs = nextMondayMs - now;
+
+		const sessionPct = (sessionCost / PLAN_CONFIG.sessionWindowBudget) * 100;
+		const weeklyPct = (weeklyCost / PLAN_CONFIG.weeklyBudget) * 100;
+		const monthlyPct = (monthlyCost / PLAN_CONFIG.monthlyBudget) * 100;
+
+		// Burn rate: daily average based on weekly spend
+		const daysIntoWeek = Math.max(daysSinceMonday + 1, 1);
+		const dailyAverage = weeklyCost / daysIntoWeek;
+		const projectedWeekly = dailyAverage * 7;
+
+		return {
+			session: {
+				cost: Math.round(sessionCost * 100) / 100,
+				budget: PLAN_CONFIG.sessionWindowBudget,
+				pct: Math.round(sessionPct),
+				resetMs: Math.max(sessionResetMs, 0),
+			},
+			weekly: {
+				cost: Math.round(weeklyCost * 100) / 100,
+				budget: PLAN_CONFIG.weeklyBudget,
+				pct: Math.round(weeklyPct),
+				resetMs: Math.max(weeklyResetMs, 0),
+			},
+			monthly: {
+				cost: Math.round(monthlyCost * 100) / 100,
+				budget: PLAN_CONFIG.monthlyBudget,
+				pct: Math.round(monthlyPct),
+			},
+			burnRate: {
+				dailyAverage: Math.round(dailyAverage * 100) / 100,
+				projectedWeekly: Math.round(projectedWeekly * 100) / 100,
+			},
+			headroom: {
+				canDispatchOpus: sessionPct < 80 && weeklyPct < 80,
+				suggestLocal: sessionPct > 60 || weeklyPct > 70,
+			},
+		};
 	},
 });

@@ -5,6 +5,7 @@ import { Id } from "../../convex/_generated/dataModel";
 import { IconX, IconCheck, IconUser, IconTag, IconMessage, IconClock, IconFileText, IconCopy, IconCalendar, IconArchive, IconPlayerPlay } from "@tabler/icons-react";
 import ReactMarkdown from "react-markdown";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
+import AgentAvatar from "./AgentAvatar";
 
 interface TaskDetailPanelProps {
   taskId: Id<"tasks"> | null;
@@ -55,7 +56,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
   const linkRun = useMutation(api.tasks.linkRun);
 
   const task = tasks?.find((t) => t._id === taskId);
-  const currentUserAgent = agents?.find(a => a.name === "Manish");
+  const currentUserAgent = agents?.find(a => a.name === "Mike");
   
   const [description, setDescription] = useState("");
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -278,13 +279,8 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
     setIsAddingDoc(false);
   };
 
-  const renderAvatar = (avatar?: string) => {
-    if (!avatar) return <IconUser size={10} />;
-    const isUrl = avatar.startsWith("http") || avatar.startsWith("data:");
-    if (isUrl) {
-      return <img src={avatar} className="w-full h-full object-cover" alt="avatar" />;
-    }
-    return <span className="text-[10px] flex items-center justify-center h-full w-full leading-none">{avatar}</span>;
+  const renderAgentAvatar = (agentName?: string, avatar?: string) => {
+    return <AgentAvatar name={agentName || "Agent"} avatar={avatar} size={20} />;
   };
 
   const formatCreationDate = (ms: number) => {
@@ -300,9 +296,9 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
   const lastUpdated = lastUpdatedActivity ? lastUpdatedActivity._creationTime : null;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[380px] bg-white border-l border-border shadow-xl transform transition-transform duration-300 ease-in-out flex flex-col z-50">
+    <div className="fixed inset-y-0 right-0 w-[380px] bg-card border-l border-border shadow-xl transform transition-transform duration-300 ease-in-out flex flex-col z-50">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-[#f8f9fa]">
+      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted">
         <div className="flex items-center gap-2">
           <span 
             className="w-2 h-2 rounded-full"
@@ -368,7 +364,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
                     })
                   }
                   disabled={!currentUserAgent}
-                  className={`${task.status === 'done' ? 'flex-1' : ''} py-1.5 px-3 bg-muted text-muted-foreground rounded text-xs font-medium flex items-center justify-center gap-2 transition-colors shadow-sm ${!currentUserAgent ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#e5e5e5]'}`}
+                  className={`${task.status === 'done' ? 'flex-1' : ''} py-1.5 px-3 bg-muted text-muted-foreground rounded text-xs font-medium flex items-center justify-center gap-2 transition-colors shadow-sm ${!currentUserAgent ? 'opacity-50 cursor-not-allowed' : 'hover:bg-muted'}`}
                   title={!currentUserAgent ? "User agent not found" : "Archive Task"}
               >
                   <IconArchive size={16} />
@@ -412,7 +408,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full min-h-[90px] p-2.5 text-sm border border-border rounded bg-white text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
+                className="w-full min-h-[90px] p-2.5 text-sm border border-border rounded bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
               />
               <div className="flex justify-end gap-2">
                 <button 
@@ -443,10 +439,8 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
             {task.assigneeIds?.map(id => {
               const agent = agents?.find(a => a._id === id);
               return (
-                <div key={id} className="flex items-center gap-1.5 px-2 py-1 bg-white border border-border rounded-full shadow-sm">
-                  <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                     {renderAvatar(agent?.avatar)}
-                  </div>
+                <div key={id} className="flex items-center gap-1.5 px-2 py-1 bg-card border border-border rounded-full shadow-sm">
+                  {renderAgentAvatar(agent?.name, agent?.avatar)}
                   <span className="text-xs font-medium text-foreground">{agent?.name || "Unknown"}</span>
                   <button 
                     onClick={() => handleAssigneeToggle(id)} 
@@ -461,22 +455,20 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
             <div className="relative group">
               <button
                 disabled={!currentUserAgent}
-                className="flex items-center gap-1 px-2 py-1 bg-muted border border-transparent rounded-full text-[11px] text-muted-foreground hover:bg-white hover:border-border transition-all disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 bg-muted border border-transparent rounded-full text-[11px] text-muted-foreground hover:bg-card hover:border-border transition-all disabled:opacity-50"
               >
                 <span>+ Add</span>
               </button>
               
               {/* Dropdown for adding agents - simplified for now */}
-              <div className="absolute top-full left-0 mt-1 w-48 bg-white border border-border shadow-lg rounded-lg hidden group-hover:block z-10 p-1">
+              <div className="absolute top-full left-0 mt-1 w-48 bg-card border border-border shadow-lg rounded-lg hidden group-hover:block z-10 p-1">
                  {agents?.filter(a => !task.assigneeIds?.includes(a._id)).map(agent => (
                    <button 
                     key={agent._id}
                     onClick={() => handleAssigneeToggle(agent._id)}
                     className="w-full text-left px-2 py-1.5 text-xs hover:bg-muted rounded flex items-center gap-2"
                    >
-                     <div className="w-4 h-4 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                        {renderAvatar(agent.avatar)}
-                     </div>
+                     {renderAgentAvatar(agent.name, agent.avatar)}
                      {agent.name}
                    </button>
                  ))}
@@ -494,7 +486,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
                 <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Resources / Deliverables</label>
                 <div className="space-y-1">
                     {resources.map((doc) => (
-                        <div key={doc._id} onClick={() => onPreviewDocument?.(doc._id)} className="flex items-center justify-between p-1.5 bg-white border border-border rounded text-sm hover:bg-muted transition-colors cursor-pointer">
+                        <div key={doc._id} onClick={() => onPreviewDocument?.(doc._id)} className="flex items-center justify-between p-1.5 bg-card border border-border rounded text-sm hover:bg-muted transition-colors cursor-pointer">
                             <div className="flex items-center gap-2 overflow-hidden">
                                 <IconFileText size={14} className="text-muted-foreground shrink-0" />
                                 <div className="flex flex-col min-w-0">
@@ -531,9 +523,9 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
           {sortedMessages.length > 0 && (
             <div className="space-y-2.5">
               {sortedMessages.map((msg) => (
-                <div key={msg._id} className="flex gap-2 p-2.5 bg-white border border-border rounded">
-                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
-                    {renderAvatar(msg.agentAvatar)}
+                <div key={msg._id} className="flex gap-2 p-2.5 bg-card border border-border rounded">
+                  <div className="shrink-0">
+                    <AgentAvatar name={msg.agentName || "Agent"} avatar={msg.agentAvatar} size={24} />
                   </div>
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center justify-between text-[11px] text-muted-foreground">
@@ -583,7 +575,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
                     className={`text-[10px] px-2 py-0.5 rounded border transition-colors ${
                       isSelected
                         ? "bg-[var(--accent-blue)] text-white border-[var(--accent-blue)]"
-                        : "bg-white text-muted-foreground border-border hover:bg-muted"
+                        : "bg-card text-muted-foreground border-border hover:bg-muted"
                     } disabled:opacity-50`}
                   >
                     {doc.title}
@@ -624,27 +616,27 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
                   value={newDocTitle}
                   onChange={(e) => setNewDocTitle(e.target.value)}
                   placeholder="Document title"
-                  className="w-full p-2 text-xs border border-border rounded bg-white text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
+                  className="w-full p-2 text-xs border border-border rounded bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
                 />
                 <div className="flex gap-2">
                   <input
                     value={newDocType}
                     onChange={(e) => setNewDocType(e.target.value)}
                     placeholder="Type (note, spec, link)"
-                    className="flex-1 p-2 text-xs border border-border rounded bg-white text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
+                    className="flex-1 p-2 text-xs border border-border rounded bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
                   />
                   <input
                     value={newDocPath}
                     onChange={(e) => setNewDocPath(e.target.value)}
                     placeholder="Path (optional)"
-                    className="flex-1 p-2 text-xs border border-border rounded bg-white text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
+                    className="flex-1 p-2 text-xs border border-border rounded bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
                   />
                 </div>
                 <textarea
                   value={newDocContent}
                   onChange={(e) => setNewDocContent(e.target.value)}
                   placeholder="Content (optional)"
-                  className="w-full min-h-[70px] p-2 text-xs border border-border rounded bg-white text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
+                  className="w-full min-h-[70px] p-2 text-xs border border-border rounded bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)]"
                 />
                 <div className="flex justify-end gap-2">
                   <button
@@ -674,7 +666,7 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
               onChange={(e) => setCommentText(e.target.value)}
               placeholder={currentUserAgent ? "Write a comment..." : "Sign in as an agent to comment"}
               disabled={!currentUserAgent}
-              className="w-full min-h-[80px] p-2.5 text-sm border border-border rounded bg-white text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)] disabled:opacity-50"
+              className="w-full min-h-[80px] p-2.5 text-sm border border-border rounded bg-card text-foreground focus:outline-none focus:ring-1 focus:ring-[var(--accent-blue)] disabled:opacity-50"
             />
             <div className="flex justify-end gap-2">
               <button

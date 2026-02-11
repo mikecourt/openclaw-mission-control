@@ -1,4 +1,4 @@
-# Mission Control (Convex-based) - Setup Notes
+# Control Tower (Convex-based) - Setup Notes
 
 ## Installation Summary
 
@@ -209,7 +209,7 @@ openclaw gateway restart
 ### Verification
 
 After setup, all agent runs will automatically:
-- Appear as tasks in Mission Control at http://localhost:3002
+- Appear as tasks in Control Tower at http://localhost:3002
 - Show real-time progress updates as comments
 - Capture created documents as resources
 - Track duration and completion status
@@ -325,7 +325,7 @@ After setup, all agent runs will automatically:
 1. **Install the hook handler** (see "OpenClaw Hooks Integration" above)
 2. **Restart OpenClaw gateway:** `openclaw gateway restart`
 3. **Sign up** at http://localhost:3002
-4. **Run an agent command** (e.g., from Telegram) and watch it appear in Mission Control
+4. **Run an agent command** (e.g., from Telegram) and watch it appear in Control Tower
 5. **Explore the dashboard:**
    - Drag tasks between columns
    - Click a task to view details, comments, and documents

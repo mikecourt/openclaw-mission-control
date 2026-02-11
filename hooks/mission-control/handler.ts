@@ -1,8 +1,8 @@
 /**
- * Mission Control Hook
+ * Control Tower Hook
  *
- * Syncs agent lifecycle events to Mission Control dashboard.
- * Captures user prompts and agent responses.
+ * Syncs agent lifecycle events to Control Tower dashboard.
+ * Captures user prompts, agent responses, and cost/usage data.
  */
 
 import path from "node:path";
@@ -36,6 +36,33 @@ type OpenClawConfig = {
   };
 };
 
+type CostData = {
+  totalCost: number;
+  totalTokens: number;
+  models: Array<{
+    model: string;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
+    cost: number;
+  }>;
+};
+
+// Cost rates per 1K tokens (from Anthropic pricing)
+const COST_RATES: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
+  "claude-opus-4": { input: 0.005, output: 0.025, cacheRead: 0.0005, cacheWrite: 0.00625 },
+  "claude-sonnet-4": { input: 0.003, output: 0.015, cacheRead: 0.0003, cacheWrite: 0.00375 },
+  "claude-haiku-3": { input: 0.0008, output: 0.004, cacheRead: 0.00008, cacheWrite: 0.001 },
+};
+
+function getModelRates(modelId: string) {
+  if (modelId.includes("opus")) return COST_RATES["claude-opus-4"];
+  if (modelId.includes("sonnet")) return COST_RATES["claude-sonnet-4"];
+  if (modelId.includes("haiku")) return COST_RATES["claude-haiku-3"];
+  return COST_RATES["claude-sonnet-4"]; // default
+}
+
 let listenerRegistered = false;
 let missionControlUrl: string | undefined;
 
@@ -68,6 +95,90 @@ async function postToMissionControl(payload: Record<string, unknown>) {
 function resolveUrl(cfg?: OpenClawConfig): string | undefined {
   const hookConfig = cfg?.hooks?.internal?.entries?.["mission-control"];
   return hookConfig?.env?.MISSION_CONTROL_URL || process.env.MISSION_CONTROL_URL;
+}
+
+/**
+ * Parse session JSONL file for cost/usage data.
+ * Extracts model usage, token counts, and calculates costs.
+ */
+async function parseSessionCosts(sessionFilePath: string): Promise<CostData | null> {
+  try {
+    const content = await fsp.readFile(sessionFilePath, "utf-8");
+    const lines = content.trim().split("\n");
+
+    const modelUsage: Record<string, {
+      inputTokens: number;
+      outputTokens: number;
+      cacheReadTokens: number;
+      cacheWriteTokens: number;
+    }> = {};
+
+    for (const line of lines) {
+      try {
+        const entry = JSON.parse(line);
+
+        // Look for usage data in message entries
+        if (entry.type === "message" && entry.message?.usage) {
+          const usage = entry.message.usage;
+          const model = entry.message.model || entry.model || "unknown";
+
+          if (!modelUsage[model]) {
+            modelUsage[model] = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+          }
+
+          modelUsage[model].inputTokens += usage.input_tokens || 0;
+          modelUsage[model].outputTokens += usage.output_tokens || 0;
+          modelUsage[model].cacheReadTokens += usage.cache_read_input_tokens || usage.cache_read_tokens || 0;
+          modelUsage[model].cacheWriteTokens += usage.cache_creation_input_tokens || usage.cache_write_tokens || 0;
+        }
+
+        // Also check for usage in result entries
+        if (entry.type === "result" && entry.result?.usage) {
+          const usage = entry.result.usage;
+          const model = entry.result.model || entry.model || "unknown";
+
+          if (!modelUsage[model]) {
+            modelUsage[model] = { inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 };
+          }
+
+          modelUsage[model].inputTokens += usage.input_tokens || 0;
+          modelUsage[model].outputTokens += usage.output_tokens || 0;
+          modelUsage[model].cacheReadTokens += usage.cache_read_input_tokens || usage.cache_read_tokens || 0;
+          modelUsage[model].cacheWriteTokens += usage.cache_creation_input_tokens || usage.cache_write_tokens || 0;
+        }
+      } catch {
+        // Skip invalid JSON lines
+      }
+    }
+
+    const models = Object.entries(modelUsage).map(([model, usage]) => {
+      const rates = getModelRates(model);
+      const cost =
+        (usage.inputTokens / 1000) * rates.input +
+        (usage.outputTokens / 1000) * rates.output +
+        (usage.cacheReadTokens / 1000) * rates.cacheRead +
+        (usage.cacheWriteTokens / 1000) * rates.cacheWrite;
+
+      return {
+        model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        cacheReadTokens: usage.cacheReadTokens || undefined,
+        cacheWriteTokens: usage.cacheWriteTokens || undefined,
+        cost,
+      };
+    });
+
+    if (models.length === 0) return null;
+
+    const totalCost = models.reduce((sum, m) => sum + m.cost, 0);
+    const totalTokens = models.reduce((sum, m) => sum + m.inputTokens + m.outputTokens, 0);
+
+    return { totalCost, totalTokens, models };
+  } catch (err) {
+    console.error("[mission-control] Failed to parse session costs:", err);
+    return null;
+  }
 }
 
 /**
@@ -194,13 +305,6 @@ function extractCleanPrompt(rawPrompt: string): { prompt: string; source: string
   return { prompt: rawPrompt.trim(), source };
 }
 
-function formatPromptWithSource(prompt: string, source: string | null): string {
-  if (source) {
-    return `${source}: ${prompt}`;
-  }
-  return prompt;
-}
-
 async function findAgentEventsModule(): Promise<{
   onAgentEvent: (listener: (evt: AgentEventPayload) => void) => () => void;
 } | null> {
@@ -315,14 +419,10 @@ const handler = async (event: HookEvent) => {
             }
 
             // Determine if this is a real user run or a system follow-up
-            // Check both: messageChannel from event data (if available) and
-            // source detected by extractCleanPrompt (webchat metadata, Telegram brackets, etc.)
             const userChannels = ["telegram", "webchat", "whatsapp", "discord", "slack", "signal", "sms", "imessage", "nostr"];
             const isUserChannel = (messageChannel && userChannels.includes(messageChannel)) || source !== null;
 
             if (!isUserChannel && rawPrompt && (rawPrompt.startsWith("System:") || rawPrompt.startsWith("Read HEARTBEAT"))) {
-              // System follow-up runs (exec notifications) — don't create new tasks,
-              // but track them so tool events link to the original task
               console.log("[mission-control] System follow-up run, linking to previous runId:", lastRealRunId.get(sessionKey));
               return;
             }
@@ -348,29 +448,43 @@ const handler = async (event: HookEvent) => {
           } else if (phase === "end") {
             // Capture the assistant's response before cleanup
             let response: string | null = null;
+            let costData: CostData | null = null;
+
             if (info) {
               const sessionFile = getSessionFilePath(info.agentId, info.sessionId);
               response = await getLastAssistantMessage(sessionFile);
               if (response) {
-                // Truncate long responses
                 const maxLen = 1000;
                 if (response.length > maxLen) {
                   response = response.slice(0, maxLen) + "...";
                 }
                 console.log("[mission-control] Captured response:", response.slice(0, 100));
               }
+
+              // Parse session costs
+              costData = await parseSessionCosts(sessionFile);
+              if (costData) {
+                console.log(`[mission-control] Cost data: $${costData.totalCost.toFixed(4)} | ${costData.totalTokens} tokens | ${costData.models.length} models`);
+              }
             }
 
             const endRunId = lastRealRunId.get(sessionKey) || evt.runId;
             sessionInfo.delete(sessionKey);
-            void postToMissionControl({
+
+            const payload: Record<string, unknown> = {
               runId: endRunId,
               action: "end",
               sessionKey,
               timestamp: new Date(evt.ts).toISOString(),
               response,
               eventType: "lifecycle:end",
-            });
+            };
+
+            if (costData) {
+              payload.costData = costData;
+            }
+
+            void postToMissionControl(payload);
           } else if (phase === "error") {
             const errorRunId = lastRealRunId.get(sessionKey) || evt.runId;
             sessionInfo.delete(sessionKey);
@@ -401,7 +515,7 @@ const handler = async (event: HookEvent) => {
               action: "progress",
               sessionKey,
               timestamp: new Date(evt.ts).toISOString(),
-              message: `🔧 Using tool: ${toolName}`,
+              message: `\u{1F527} Using tool: ${toolName}`,
               eventType: "tool:start",
             });
 
@@ -458,10 +572,8 @@ const handler = async (event: HookEvent) => {
             pendingWrites.delete(toolCallId);
           }
 
-          // Capture files from exec/process tool results (e.g., images from nano banana)
-          // exec returns "Command still running", the actual output comes via the process tool
+          // Capture files from exec/process tool results
           if ((toolName === "exec" || toolName === "process") && phase === "result") {
-            // Extract text from the result (can be string or content array)
             const rawResult = evt.data?.result as string | { content?: Array<{ type?: string; text?: string }> } | undefined;
             let text = "";
             if (typeof rawResult === "string") {
@@ -476,7 +588,6 @@ const handler = async (event: HookEvent) => {
             if (!text && output) text = output;
 
             if (text) {
-              // Look for file paths with media extensions in the output
               const fileMatch = text.match(/(\/\S+\.(?:png|jpg|jpeg|gif|webp|svg|mp4|mp3|wav|pdf))/i);
 
               if (fileMatch && fileMatch[1]) {
@@ -516,17 +627,15 @@ const handler = async (event: HookEvent) => {
 
         // Assistant message chunks - track significant updates
         if (evt.stream === "assistant") {
-          const content = evt.data?.content as string | undefined;
           const chunkType = evt.data?.type as string | undefined;
 
-          // Only send on significant events, not every token
           if (chunkType === "thinking_start") {
             void postToMissionControl({
               runId: evt.runId,
               action: "progress",
               sessionKey,
               timestamp: new Date(evt.ts).toISOString(),
-              message: "💭 Thinking...",
+              message: "\u{1F4AD} Thinking...",
               eventType: "assistant:thinking",
             });
           }

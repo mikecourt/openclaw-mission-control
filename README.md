@@ -1,6 +1,6 @@
-# Mission Control
+# Control Tower
 
-A real-time, high-performance dashboard for managing autonomous agents and complex task queues. Built with **Convex**, **React**, and **Tailwind CSS**, Mission Control provides a "Command Center" experience for monitoring and orchestrating operations.
+A real-time, high-performance dashboard for managing autonomous agents and complex task queues. Built with **Convex**, **React**, and **Tailwind CSS**, Control Tower provides a "Command Center" experience for monitoring and orchestrating operations.
 
 ## ✨ Features
 
@@ -45,7 +45,7 @@ npx convex run seed:run
 
 ## 🔗 OpenClaw Integration
 
-Mission Control integrates with [OpenClaw](https://github.com/anthropics/openclaw) to automatically track agent tasks in real-time.
+Control Tower integrates with [OpenClaw](https://github.com/anthropics/openclaw) to automatically track agent tasks in real-time.
 
 ### How It Works
 
@@ -61,7 +61,7 @@ When an OpenClaw agent runs:
 
 ### Setup
 
-#### 1. Install the Mission Control Hook
+#### 1. Install the Control Tower Hook
 
 Copy the hook to your OpenClaw hooks directory:
 
@@ -73,7 +73,7 @@ Or create it manually at `~/.openclaw/hooks/mission-control/handler.ts`.
 
 #### 2. Configure the Webhook URL
 
-Add the Mission Control URL to your OpenClaw config (`~/.openclaw/config.jsonc`):
+Add the Control Tower URL to your OpenClaw config (`~/.openclaw/config.jsonc`):
 
 ```jsonc
 {
@@ -113,7 +113,7 @@ openclaw gateway restart
 | **Duration Tracking** | Shows how long each agent run took |
 | **Source Detection** | Messages from Telegram, Discord, etc. show source prefix |
 | **Markdown Comments** | Progress updates render with full markdown support |
-| **Agent Matching** | OpenClaw agents map to Mission Control agents by name |
+| **Agent Matching** | OpenClaw agents map to Control Tower agents by name |
 
 ### Webhook Endpoint
 
@@ -144,7 +144,7 @@ Payload format:
 
 ---
 
-*Mission Control // Secure Terminal Access // Ref: 2026*
+*Control Tower // Secure Terminal Access // Ref: 2026*
 
 ---
 

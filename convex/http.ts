@@ -143,6 +143,37 @@ http.route({
 });
 
 http.route({
+	path: "/api/plan-usage",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const url = new URL(request.url);
+		const tenantId = url.searchParams.get("tenantId") || "default";
+		const planUsage = await ctx.runQuery(api.queries.getPlanUsage, { tenantId });
+		return ok(planUsage);
+	}),
+});
+
+// POST /api/plan-usage — receive real plan usage from cron script
+http.route({
+	path: "/api/plan-usage",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		const tenantId = body.tenantId || "default";
+		await ctx.runMutation(api.planUsage.upsert, {
+			tenantId,
+			planName: body.planName || "Max",
+			sessionPct: body.sessionPct ?? 0,
+			sessionResetAt: body.sessionResetAt,
+			weeklyPct: body.weeklyPct ?? 0,
+			weeklyResetAt: body.weeklyResetAt,
+			fetchedAt: body.fetchedAt || Date.now(),
+		});
+		return ok({ ok: true });
+	}),
+});
+
+http.route({
 	path: "/api/projects",
 	method: "GET",
 	handler: httpAction(async (ctx, request) => {

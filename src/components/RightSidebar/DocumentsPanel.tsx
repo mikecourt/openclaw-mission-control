@@ -75,15 +75,15 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
   const getTypeColor = (type: string) => {
     switch (type) {
       case "markdown":
-        return "bg-blue-100 text-blue-700";
+        return "bg-blue-900/30 text-blue-400";
       case "code":
-        return "bg-green-100 text-green-700";
+        return "bg-green-900/30 text-green-400";
       case "image":
-        return "bg-purple-100 text-purple-700";
+        return "bg-purple-900/30 text-purple-400";
       case "note":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-yellow-900/30 text-yellow-400";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -111,8 +111,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
             onClick={() => setSelectedAgentId(undefined)}
             className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
               selectedAgentId === undefined
-                ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-white"
-                : "border-border bg-white text-muted-foreground hover:bg-muted/50"
+                ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-card"
+                : "border-border bg-card text-muted-foreground hover:bg-muted/50"
             }`}
           >
             All Agents
@@ -123,8 +123,8 @@ const DocumentsPanel: React.FC<DocumentsPanelProps> = ({
               onClick={() => setSelectedAgentId(a._id)}
               className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer flex items-center gap-1 transition-colors ${
                 selectedAgentId === a._id
-                  ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-white"
-                  : "border-border bg-white text-muted-foreground hover:bg-muted/50"
+                  ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-card"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted/50"
               }`}
             >
               {a.name}

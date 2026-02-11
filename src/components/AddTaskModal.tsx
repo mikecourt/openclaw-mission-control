@@ -27,10 +27,12 @@ type AddTaskModalProps = {
 	onClose: () => void;
 	onCreated: (taskId: Id<"tasks">) => void;
 	initialAssigneeId?: string;
+	initialProjectId?: Id<"projects">;
 };
 
-const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initialAssigneeId }) => {
+const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initialAssigneeId, initialProjectId }) => {
 	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+	const projects = useQuery(api.projects.listAll, { tenantId: DEFAULT_TENANT_ID });
 	const createTask = useMutation(api.tasks.createTask);
 	const updateAssignees = useMutation(api.tasks.updateAssignees);
 
@@ -41,6 +43,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 	const [tags, setTags] = useState<string[]>([]);
 	const [assigneeId, setAssigneeId] = useState(initialAssigneeId ?? "");
 	const [borderColor, setBorderColor] = useState("");
+	const [projectId, setProjectId] = useState<string>(initialProjectId ?? "");
+	const [priority, setPriority] = useState("medium");
 	const [submitting, setSubmitting] = useState(false);
 
 	const handleAddTag = useCallback(
@@ -74,6 +78,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 						status,
 						tags,
 						borderColor: borderColor || undefined,
+						projectId: projectId ? (projectId as Id<"projects">) : undefined,
+						priority: priority || undefined,
 						tenantId: DEFAULT_TENANT_ID,
 					});
 
@@ -100,6 +106,8 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 			status,
 			tags,
 			borderColor,
+			projectId,
+			priority,
 			assigneeId,
 			agents,
 			createTask,
@@ -116,7 +124,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 		>
 			<div className="absolute inset-0 bg-black/40" />
 			<div
-				className="relative bg-white rounded-xl border border-border shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
+				className="relative bg-card rounded-xl border border-border shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
 				onClick={(e) => e.stopPropagation()}
 			>
 				<div className="flex items-center justify-between px-6 py-4 border-b border-border">
@@ -143,7 +151,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 							type="text"
 							value={title}
 							onChange={(e) => setTitle(e.target.value)}
-							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
+							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
 							placeholder="Task title"
 							required
 							autoFocus
@@ -158,10 +166,46 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 						<textarea
 							value={description}
 							onChange={(e) => setDescription(e.target.value)}
-							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent resize-none"
+							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent resize-none"
 							placeholder="Optional — defaults to title"
 							rows={3}
 						/>
+					</div>
+
+					{/* Project & Priority */}
+					<div className="grid grid-cols-2 gap-4">
+						<div>
+							<label className="block text-[11px] font-semibold text-muted-foreground tracking-wide mb-1.5">
+								PROJECT
+							</label>
+							<select
+								value={projectId}
+								onChange={(e) => setProjectId(e.target.value)}
+								className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
+							>
+								<option value="">No Project</option>
+								{projects?.filter((p) => p.status !== "archived" && p.status !== "complete").map((p) => (
+									<option key={p._id} value={p._id}>
+										{p.name}
+									</option>
+								))}
+							</select>
+						</div>
+						<div>
+							<label className="block text-[11px] font-semibold text-muted-foreground tracking-wide mb-1.5">
+								PRIORITY
+							</label>
+							<select
+								value={priority}
+								onChange={(e) => setPriority(e.target.value)}
+								className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
+							>
+								<option value="urgent">Urgent</option>
+								<option value="high">High</option>
+								<option value="medium">Medium</option>
+								<option value="low">Low</option>
+							</select>
+						</div>
 					</div>
 
 					{/* Status */}
@@ -172,7 +216,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 						<select
 							value={status}
 							onChange={(e) => setStatus(e.target.value)}
-							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
+							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
 						>
 							{STATUS_OPTIONS.map((opt) => (
 								<option key={opt.value} value={opt.value}>
@@ -212,7 +256,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 							value={tagInput}
 							onChange={(e) => setTagInput(e.target.value)}
 							onKeyDown={handleAddTag}
-							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
+							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
 							placeholder="Type a tag and press Enter"
 						/>
 					</div>
@@ -231,7 +275,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 									setStatus("assigned");
 								}
 							}}
-							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
+							className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-card focus:outline-none focus:ring-2 focus:ring-[var(--accent-blue)] focus:border-transparent"
 						>
 							<option value="">Unassigned</option>
 							{agents?.map((agent) => (

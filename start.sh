@@ -1,0 +1,4 @@
+#!/bin/bash
+# Start Control Tower Convex frontend
+cd "$(dirname "$0")"
+exec npx vite --port 3002 --host 0.0.0.0

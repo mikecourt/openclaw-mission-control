@@ -4,6 +4,23 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { DEFAULT_TENANT_ID } from "../../lib/tenant";
 
+function formatRelativeTime(timestamp: number): string {
+  const now = Date.now();
+  const diff = now - timestamp;
+
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (seconds < 60) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  if (hours < 24) return `${hours}h ago`;
+  if (days < 7) return `${days}d ago`;
+
+  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 const filters = [
   { id: "all", label: "All" },
   { id: "tasks", label: "Tasks" },
@@ -62,8 +79,8 @@ const LiveFeedPanel: React.FC = () => {
             onClick={() => setSelectedAgentId(undefined)}
             className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer transition-colors ${
               selectedAgentId === undefined
-                ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-white"
-                : "border-border bg-white text-muted-foreground hover:bg-muted/50"
+                ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-card"
+                : "border-border bg-card text-muted-foreground hover:bg-muted/50"
             }`}
           >
             All Agents
@@ -74,8 +91,8 @@ const LiveFeedPanel: React.FC = () => {
               onClick={() => setSelectedAgentId(a._id)}
               className={`text-[10px] font-semibold px-2.5 py-1 rounded-full border cursor-pointer flex items-center gap-1 transition-colors ${
                 selectedAgentId === a._id
-                  ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-white"
-                  : "border-border bg-white text-muted-foreground hover:bg-muted/50"
+                  ? "border-[var(--accent-orange)] text-[var(--accent-orange)] bg-card"
+                  : "border-border bg-card text-muted-foreground hover:bg-muted/50"
               }`}
             >
               {a.name}
@@ -97,7 +114,7 @@ const LiveFeedPanel: React.FC = () => {
               </span>{" "}
               {item.message}
               <div className="text-[10px] text-muted-foreground mt-1">
-                just now
+                {formatRelativeTime(item._creationTime)}
               </div>
             </div>
           </div>
