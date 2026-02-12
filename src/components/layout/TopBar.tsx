@@ -1,0 +1,97 @@
+import { useLocation, Link } from "react-router-dom";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
+import { DEFAULT_TENANT_ID } from "../../lib/tenant";
+
+const ROUTE_LABELS: Record<string, string> = {
+	"/dashboard": "Dashboard",
+	"/board": "Board",
+	"/tasks": "Tasks",
+	"/agents": "Agents",
+	"/agents/escalation": "Escalation Map",
+	"/opus": "Opus Budget",
+	"/phase": "Phase Manager",
+	"/logs": "Activity Log",
+	"/settings": "Settings",
+};
+
+export default function TopBar() {
+	const location = useLocation();
+	const planUsage = useQuery(api.queries.getPlanUsage, { tenantId: DEFAULT_TENANT_ID });
+
+	// Determine breadcrumb from path
+	const pathSegments = location.pathname.split("/").filter(Boolean);
+	const fullPath = `/${pathSegments.join("/")}`;
+	const basePath = `/${pathSegments[0] || "dashboard"}`;
+	// Check if the full path is a known route (e.g. /agents/escalation)
+	const fullPathLabel = ROUTE_LABELS[fullPath];
+	const baseLabel = ROUTE_LABELS[basePath] || pathSegments[0] || "Dashboard";
+	const hasDetail = pathSegments.length > 1;
+
+	const sessionPct = planUsage?.session?.pct ?? 0;
+	const weeklyPct = planUsage?.weekly?.pct ?? 0;
+
+	return (
+		<div className="mc-topbar" style={{ gridColumn: 2, gridRow: 1 }}>
+			<div className="breadcrumb">
+				<Link to="/dashboard" style={{ color: "inherit", textDecoration: "none" }}>
+					MC
+				</Link>
+				<span style={{ opacity: 0.4 }}>/</span>
+				{hasDetail ? (
+					<>
+						<Link to={basePath} style={{ color: "inherit", textDecoration: "none" }}>
+							{baseLabel}
+						</Link>
+						<span style={{ opacity: 0.4 }}>/</span>
+						<span className="current">{fullPathLabel || pathSegments[1]}</span>
+					</>
+				) : (
+					<span className="current">{baseLabel}</span>
+				)}
+			</div>
+
+			<div style={{ flex: 1 }} />
+
+			{/* Plan usage indicators */}
+			{planUsage && (
+				<div style={{ display: "flex", gap: 16, alignItems: "center", fontSize: 12 }}>
+					<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+						<span style={{ color: "var(--mc-text-muted)" }}>Session</span>
+						<span
+							style={{
+								color:
+									sessionPct > 80
+										? "var(--mc-status-error)"
+										: sessionPct > 60
+											? "var(--mc-status-warn)"
+											: "var(--mc-status-ok)",
+								fontWeight: 600,
+								fontVariantNumeric: "tabular-nums",
+							}}
+						>
+							{sessionPct}%
+						</span>
+					</div>
+					<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+						<span style={{ color: "var(--mc-text-muted)" }}>Weekly</span>
+						<span
+							style={{
+								color:
+									weeklyPct > 80
+										? "var(--mc-status-error)"
+										: weeklyPct > 60
+											? "var(--mc-status-warn)"
+											: "var(--mc-status-ok)",
+								fontWeight: 600,
+								fontVariantNumeric: "tabular-nums",
+							}}
+						>
+							{weeklyPct}%
+						</span>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}

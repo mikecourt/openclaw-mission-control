@@ -21,10 +21,13 @@
 		"@dnd-kit/utilities": "^3.2.2",
 		"@tabler/icons-react": "^3.36.1",
 		"@tailwindcss/typography": "^0.5.19",
+		"@xyflow/react": "^12.10.0",
 		"convex": "^1.31.7",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
-		"react-markdown": "^10.1.0"
+		"react-markdown": "^10.1.0",
+		"react-router-dom": "^7.13.0",
+		"recharts": "^3.7.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.13",

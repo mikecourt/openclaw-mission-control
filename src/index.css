@@ -76,6 +76,32 @@
 	--shadow-2xl: 0px 1px 2px 0px hsl(0 0% 0% / 0.45);
 	--tracking-normal: 0em;
 	--spacing: 0.25rem;
+
+	/* Mission Control Dashboard tokens */
+	--mc-bg-primary: #0a0a0f;
+	--mc-bg-secondary: #12121a;
+	--mc-bg-card: #1a1a26;
+	--mc-bg-card-hover: #22222e;
+	--mc-border: #2a2a3a;
+	--mc-text-primary: #e4e4ef;
+	--mc-text-secondary: #8888a0;
+	--mc-text-muted: #55556a;
+	--mc-status-ok: #22c55e;
+	--mc-status-warn: #eab308;
+	--mc-status-error: #ef4444;
+	--mc-status-active: #6366f1;
+	--mc-tier-1: #f59e0b;
+	--mc-tier-2: #3b82f6;
+	--mc-tier-3: #6b7280;
+	--mc-priority-critical: #ef4444;
+	--mc-priority-urgent: #f97316;
+	--mc-priority-normal: #3b82f6;
+	--mc-priority-low: #6b7280;
+	--mc-phase-coding: #3b82f6;
+	--mc-phase-reasoning: #8b5cf6;
+	--nav-width-collapsed: 60px;
+	--nav-width-expanded: 240px;
+	--topbar-height: 48px;
 }
 
 .dark {
@@ -400,4 +426,286 @@
 	.tray.tray-preview.is-open {
 		transform: translateX(0);
 	}
+}
+
+/* Nav Sidebar */
+.nav-sidebar {
+	position: fixed;
+	top: 0;
+	left: 0;
+	bottom: 0;
+	width: var(--nav-width-collapsed);
+	background: var(--mc-bg-secondary);
+	border-right: 1px solid var(--mc-border);
+	z-index: 200;
+	transition: width 200ms ease;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.nav-sidebar:hover,
+.nav-sidebar.is-expanded {
+	width: var(--nav-width-expanded);
+}
+
+.nav-sidebar .nav-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 10px 16px;
+	color: var(--mc-text-secondary);
+	text-decoration: none;
+	font-size: 14px;
+	white-space: nowrap;
+	border-radius: 6px;
+	margin: 2px 8px;
+	transition: background 150ms, color 150ms;
+}
+
+.nav-sidebar .nav-item:hover {
+	background: var(--mc-bg-card-hover);
+	color: var(--mc-text-primary);
+}
+
+.nav-sidebar .nav-item.active {
+	background: var(--mc-bg-card);
+	color: var(--mc-text-primary);
+}
+
+.nav-sidebar .nav-item svg {
+	flex-shrink: 0;
+	width: 20px;
+	height: 20px;
+}
+
+/* TopBar */
+.mc-topbar {
+	height: var(--topbar-height);
+	background: var(--mc-bg-secondary);
+	border-bottom: 1px solid var(--mc-border);
+	display: flex;
+	align-items: center;
+	padding: 0 20px;
+	gap: 16px;
+}
+
+.mc-topbar .breadcrumb {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	color: var(--mc-text-secondary);
+	font-size: 14px;
+}
+
+.mc-topbar .breadcrumb .current {
+	color: var(--mc-text-primary);
+	font-weight: 500;
+}
+
+/* AppShell layout */
+.app-shell {
+	display: grid;
+	grid-template-columns: var(--nav-width-collapsed) 1fr;
+	grid-template-rows: var(--topbar-height) 1fr;
+	height: 100vh;
+	width: 100vw;
+	background: var(--mc-bg-primary);
+}
+
+.app-shell .main-content {
+	grid-column: 2;
+	grid-row: 2;
+	overflow-y: auto;
+	padding: 20px;
+}
+
+/* Shared component styles */
+.metric-card {
+	background: var(--mc-bg-card);
+	border: 1px solid var(--mc-border);
+	border-radius: 8px;
+	padding: 16px;
+}
+
+.metric-card .metric-label {
+	font-size: 12px;
+	color: var(--mc-text-secondary);
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	margin-bottom: 4px;
+}
+
+.metric-card .metric-value {
+	font-size: 24px;
+	font-weight: 600;
+	color: var(--mc-text-primary);
+}
+
+.metric-card .metric-sub {
+	font-size: 12px;
+	color: var(--mc-text-muted);
+	margin-top: 2px;
+}
+
+.status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	display: inline-block;
+	flex-shrink: 0;
+}
+
+.data-table {
+	width: 100%;
+	border-collapse: collapse;
+}
+
+.data-table th {
+	text-align: left;
+	padding: 8px 12px;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--mc-text-muted);
+	border-bottom: 1px solid var(--mc-border);
+	cursor: pointer;
+	user-select: none;
+}
+
+.data-table th:hover {
+	color: var(--mc-text-secondary);
+}
+
+.data-table td {
+	padding: 10px 12px;
+	font-size: 13px;
+	color: var(--mc-text-primary);
+	border-bottom: 1px solid var(--mc-border);
+}
+
+.data-table tr:hover td {
+	background: var(--mc-bg-card-hover);
+}
+
+.badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 2px 8px;
+	border-radius: 4px;
+	font-size: 11px;
+	font-weight: 500;
+	letter-spacing: 0.02em;
+}
+
+.empty-state {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	color: var(--mc-text-muted);
+	text-align: center;
+}
+
+.empty-state svg {
+	width: 48px;
+	height: 48px;
+	margin-bottom: 16px;
+	opacity: 0.5;
+}
+
+.empty-state h3 {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--mc-text-secondary);
+	margin-bottom: 4px;
+}
+
+.empty-state p {
+	font-size: 13px;
+}
+
+/* Page header */
+.page-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 24px;
+}
+
+.page-header h1 {
+	font-size: 24px;
+	font-weight: 600;
+	color: var(--mc-text-primary);
+}
+
+.page-header .actions {
+	display: flex;
+	gap: 8px;
+}
+
+.btn-primary {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 16px;
+	background: var(--mc-status-active);
+	color: white;
+	border: none;
+	border-radius: 6px;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: opacity 150ms;
+}
+
+.btn-primary:hover {
+	opacity: 0.9;
+}
+
+.btn-secondary {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 16px;
+	background: var(--mc-bg-card);
+	color: var(--mc-text-primary);
+	border: 1px solid var(--mc-border);
+	border-radius: 6px;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 150ms;
+}
+
+.btn-secondary:hover {
+	background: var(--mc-bg-card-hover);
+}
+
+/* React Flow dark theme overrides */
+.react-flow__controls button {
+	background: var(--mc-bg-card) !important;
+	border-color: var(--mc-border) !important;
+	fill: var(--mc-text-secondary) !important;
+}
+
+.react-flow__controls button:hover {
+	background: var(--mc-bg-card-hover) !important;
+}
+
+.react-flow__edge-path {
+	stroke-opacity: 0.6;
+	transition: stroke-opacity 150ms;
+}
+
+.react-flow__edge:hover .react-flow__edge-path {
+	stroke-opacity: 1;
+}
+
+.react-flow__handle {
+	width: 8px !important;
+	height: 8px !important;
+	border: 2px solid var(--mc-border) !important;
+	background: var(--mc-bg-card) !important;
 }
