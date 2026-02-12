@@ -280,7 +280,7 @@ const AddTaskModal: React.FC<AddTaskModalProps> = ({ onClose, onCreated, initial
 							<option value="">Unassigned</option>
 							{agents?.map((agent) => (
 								<option key={agent._id} value={agent._id}>
-									{agent.avatar} {agent.name} — {agent.role}
+									{agent.name} — {agent.role}
 								</option>
 							))}
 						</select>
