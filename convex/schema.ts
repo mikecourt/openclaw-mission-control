@@ -28,8 +28,23 @@ export default defineSchema({
 		orgId: v.optional(v.string()),
 		workspaceId: v.optional(v.string()),
 		tenantId: v.optional(v.string()),
-	}).index("by_tenant", ["tenantId"])
-		.index("by_tenant_name", ["tenantId", "name"]),
+		businessUnit: v.optional(v.string()),
+		category: v.optional(v.string()),
+		model: v.optional(v.string()),
+		fallbackModel: v.optional(v.string()),
+		tier: v.optional(v.string()),
+		phase: v.optional(v.string()),
+		isEnabled: v.optional(v.boolean()),
+		maxConcurrentTasks: v.optional(v.number()),
+		escalationPath: v.optional(v.array(v.string())),
+		lastActiveAt: v.optional(v.number()),
+		errorMessage: v.optional(v.string()),
+		promptHistory: v.optional(v.array(v.object({ prompt: v.string(), savedAt: v.number() }))),
+		routingId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_name", ["tenantId", "name"])
+		.index("by_tenant_routingId", ["tenantId", "routingId"]),
 
 	projects: defineTable({
 		name: v.string(),
@@ -102,10 +117,31 @@ export default defineSchema({
 		orgId: v.optional(v.string()),
 		workspaceId: v.optional(v.string()),
 		tenantId: v.optional(v.string()),
+		taskType: v.optional(v.string()),
+		businessUnit: v.optional(v.string()),
+		completedAt: v.optional(v.number()),
+		escalationHistory: v.optional(v.array(v.object({
+			agentId: v.string(),
+			model: v.optional(v.string()),
+			timestamp: v.number(),
+			duration: v.optional(v.number()),
+			status: v.string(),
+			reason: v.optional(v.string()),
+		}))),
+		phase: v.optional(v.string()),
+		fromAgent: v.optional(v.string()),
+		constraints: v.optional(v.array(v.string())),
+		result: v.optional(v.any()),
+		maxTierAttempted: v.optional(v.string()),
+		escalationAttempts: v.optional(v.number()),
+		classificationConfidence: v.optional(v.number()),
+		dependsOn: v.optional(v.array(v.id("tasks"))),
+		deadline: v.optional(v.number()),
 	})
 		.index("by_tenant", ["tenantId"])
 		.index("by_tenant_project", ["tenantId", "projectId"])
-		.index("by_tenant_status", ["tenantId", "status"]),
+		.index("by_tenant_status", ["tenantId", "status"])
+		.index("by_tenant_phase_status", ["tenantId", "phase", "status"]),
 
 	messages: defineTable({
 		taskId: v.id("tasks"),
@@ -209,4 +245,81 @@ export default defineSchema({
 		weeklyResetAt: v.optional(v.string()),
 		fetchedAt: v.number(),
 	}).index("by_tenant", ["tenantId"]),
+
+	activityLog: defineTable({
+		timestamp: v.number(),
+		level: v.union(v.literal("info"), v.literal("warn"), v.literal("error"), v.literal("debug")),
+		source: v.string(),
+		action: v.string(),
+		message: v.string(),
+		metadata: v.optional(v.any()),
+		taskId: v.optional(v.id("tasks")),
+		agentId: v.optional(v.string()),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_level", ["tenantId", "level"])
+		.index("by_tenant_source", ["tenantId", "source"]),
+
+	phaseState: defineTable({
+		currentPhase: v.string(),
+		model: v.optional(v.string()),
+		lastSwap: v.number(),
+		ramPercent: v.optional(v.number()),
+		queuedCoding: v.optional(v.number()),
+		queuedReasoning: v.optional(v.number()),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"]),
+
+	phaseSwapHistory: defineTable({
+		fromPhase: v.string(),
+		toPhase: v.string(),
+		timestamp: v.number(),
+		trigger: v.optional(v.string()),
+		codingQueuedAtSwap: v.optional(v.number()),
+		reasoningQueuedAtSwap: v.optional(v.number()),
+		durationMs: v.optional(v.number()),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"]),
+
+	systemSettings: defineTable({
+		key: v.string(),
+		value: v.any(),
+		updatedAt: v.number(),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_key", ["tenantId", "key"]),
+
+	agentMetrics: defineTable({
+		agentId: v.string(),
+		date: v.string(),
+		tasksCompleted: v.number(),
+		tasksFailed: v.number(),
+		tasksEscalated: v.number(),
+		avgCompletionMs: v.optional(v.number()),
+		tokensUsed: v.optional(v.number()),
+		estimatedCost: v.optional(v.number()),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_agent", ["tenantId", "agentId"])
+		.index("by_tenant_date", ["tenantId", "date"]),
+
+	opusUsage: defineTable({
+		date: v.string(),
+		count: v.number(),
+		log: v.array(v.object({
+			taskId: v.id("tasks"),
+			timestamp: v.number(),
+			category: v.string(),
+			summary: v.string(),
+		})),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_date", ["date"])
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_date", ["tenantId", "date"]),
 });

@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 function assertTenant(
 	record: { tenantId?: string } | null,
@@ -23,7 +23,7 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const agent = await ctx.db.get("agents", args.id);
+    const agent = await ctx.db.get(args.id);
     assertTenant(agent, args.tenantId, "Agent");
 
     await ctx.db.patch(args.id, { status: args.status });
@@ -83,7 +83,7 @@ export const updateAgent = mutation({
     )),
   },
   handler: async (ctx, args) => {
-    const agent = await ctx.db.get("agents", args.id);
+    const agent = await ctx.db.get(args.id);
     assertTenant(agent, args.tenantId, "Agent");
 
     const { id, tenantId: _tenantId, ...updates } = args;
@@ -131,8 +131,95 @@ export const updateStatusByName = mutation({
 export const deleteAgent = mutation({
   args: { id: v.id("agents"), tenantId: v.string() },
   handler: async (ctx, args) => {
-    const agent = await ctx.db.get("agents", args.id);
+    const agent = await ctx.db.get(args.id);
     assertTenant(agent, args.tenantId, "Agent");
     await ctx.db.delete(args.id);
+  },
+});
+
+// --- Phase 3: Agent Directory enhancements ---
+
+export const updateSystemPrompt = mutation({
+  args: {
+    id: v.id("agents"),
+    tenantId: v.string(),
+    prompt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.id);
+    assertTenant(agent, args.tenantId, "Agent");
+
+    // Push old systemPrompt to promptHistory (create array if missing)
+    const history = agent!.promptHistory ?? [];
+    if (agent!.systemPrompt) {
+      history.push({
+        prompt: agent!.systemPrompt,
+        savedAt: Date.now(),
+      });
+    }
+
+    await ctx.db.patch(args.id, {
+      systemPrompt: args.prompt,
+      promptHistory: history,
+    });
+  },
+});
+
+export const toggleAgent = mutation({
+  args: {
+    id: v.id("agents"),
+    tenantId: v.string(),
+    enabled: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.id);
+    assertTenant(agent, args.tenantId, "Agent");
+    await ctx.db.patch(args.id, { isEnabled: args.enabled });
+  },
+});
+
+export const getAgentWithMetrics = query({
+  args: {
+    id: v.id("agents"),
+    tenantId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.id);
+    assertTenant(agent, args.tenantId, "Agent");
+
+    // Get all tasks for this tenant
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
+
+    // Filter to this agent's tasks
+    const agentTasks = tasks.filter((t) => t.assigneeIds.includes(args.id));
+    const active = agentTasks.filter(
+      (t) => t.status === "in_progress" || t.status === "assigned"
+    ).length;
+    const completed = agentTasks.filter(
+      (t) => t.status === "done" || t.status === "archived"
+    ).length;
+    const review = agentTasks.filter((t) => t.status === "review").length;
+
+    // Get recent agentMetrics (last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const cutoffDate = sevenDaysAgo.toISOString().split("T")[0];
+
+    const recentMetrics = await ctx.db
+      .query("agentMetrics")
+      .withIndex("by_tenant_agent", (q) =>
+        q.eq("tenantId", args.tenantId).eq("agentId", agent!.name)
+      )
+      .filter((q) => q.gte(q.field("date"), cutoffDate))
+      .collect();
+
+    return {
+      agent: agent!,
+      taskCounts: { active, completed, review },
+      recentMetrics,
+    };
   },
 });

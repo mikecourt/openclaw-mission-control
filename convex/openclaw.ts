@@ -170,6 +170,17 @@ export const receiveAgentEvent = mutation({
 						targetId: taskId,
 						tenantId,
 					});
+
+					await ctx.db.insert("activityLog", {
+						timestamp: now,
+						level: "info",
+						source: agent.name || "system",
+						action: "task_start",
+						message: `started "${title}"`,
+						taskId: taskId,
+						agentId: args.agentId ?? undefined,
+						tenantId,
+					});
 				}
 			} else if (args.prompt && task.title.startsWith("Agent task")) {
 				const title = summarizePrompt(args.prompt);
@@ -231,6 +242,28 @@ export const receiveAgentEvent = mutation({
 
 			await ctx.db.patch(task._id, patch);
 
+			// Set completedAt on task end
+			await ctx.db.patch(task._id, { completedAt: now });
+
+			// Record escalation history entry for task completion tracking
+			if (namedAgent) {
+				const existingHistory = task.escalationHistory || [];
+				const startTime = task.startedAt || task._creationTime;
+				const duration = now - startTime;
+				await ctx.db.patch(task._id, {
+					escalationHistory: [
+						...existingHistory,
+						{
+							agentId: namedAgent.name,
+							model: namedAgent.model,
+							timestamp: now,
+							duration,
+							status: endStatus === "done" ? "completed" : "review",
+						},
+					],
+				});
+			}
+
 			// Record usage data per model
 			if (args.costData) {
 				for (const modelData of args.costData.models) {
@@ -290,6 +323,18 @@ export const receiveAgentEvent = mutation({
 					targetId: task._id,
 					tenantId,
 				});
+
+				// Dual-write to structured activity log
+				await ctx.db.insert("activityLog", {
+					timestamp: now,
+					level: "info",
+					source: agent.name || "system",
+					action: "task_end",
+					message: `${needsFeedback ? "needs input on" : "completed"} "${task.title}" in ${durationStr}`,
+					taskId: task._id,
+					agentId: args.agentId ?? undefined,
+					tenantId,
+				});
 			}
 			if (namedAgent) {
 				await ctx.db.patch(namedAgent._id, { status: "idle", currentTaskId: undefined });
@@ -315,6 +360,17 @@ export const receiveAgentEvent = mutation({
 					agentId: agent._id,
 					message: `error on "${task.title}" after ${durationStr}`,
 					targetId: task._id,
+					tenantId,
+				});
+
+				await ctx.db.insert("activityLog", {
+					timestamp: now,
+					level: "error",
+					source: agent.name || "system",
+					action: "task_error",
+					message: `error on "${task.title}" after ${durationStr}`,
+					taskId: task._id,
+					agentId: args.agentId ?? undefined,
 					tenantId,
 				});
 			}

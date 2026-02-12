@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 
 function requireTenant<T extends { tenantId?: string }>(
 	record: T | null,
@@ -241,5 +241,221 @@ export const updateTask = mutation({
         tenantId: args.tenantId,
       });
     }
+  },
+});
+
+export const listTasksFiltered = query({
+  args: {
+    tenantId: v.string(),
+    status: v.optional(v.string()),
+    priority: v.optional(v.string()),
+    businessUnit: v.optional(v.string()),
+    agentId: v.optional(v.id("agents")),
+    search: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 50;
+
+    let tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
+
+    if (args.status) {
+      tasks = tasks.filter((t) => t.status === args.status);
+    }
+    if (args.priority) {
+      tasks = tasks.filter((t) => t.priority === args.priority);
+    }
+    if (args.businessUnit) {
+      tasks = tasks.filter((t) => t.businessUnit === args.businessUnit);
+    }
+    if (args.agentId) {
+      tasks = tasks.filter((t) => t.assigneeIds.includes(args.agentId!));
+    }
+    if (args.search) {
+      const searchLower = args.search.toLowerCase();
+      tasks = tasks.filter((t) => t.title.toLowerCase().includes(searchLower));
+    }
+
+    tasks.sort((a, b) => b._creationTime - a._creationTime);
+
+    return tasks.slice(0, limit);
+  },
+});
+
+export const getTaskStats = query({
+  args: {
+    tenantId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const tasks = await ctx.db
+      .query("tasks")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+    const byPriority: Record<string, number> = {};
+    const byBusinessUnit: Record<string, number> = {};
+
+    let active = 0;
+    let queued = 0;
+    let completedToday = 0;
+    let failedToday = 0;
+    let review = 0;
+
+    for (const task of tasks) {
+      if (task.status === "in_progress") active++;
+      if (task.status === "inbox" || task.status === "assigned") queued++;
+      if (task.status === "done" && task._creationTime >= startOfToday) completedToday++;
+      if (task.status === "archived" && task._creationTime >= startOfToday) failedToday++;
+      if (task.status === "review") review++;
+
+      if (task.priority) {
+        byPriority[task.priority] = (byPriority[task.priority] || 0) + 1;
+      }
+      if (task.businessUnit) {
+        byBusinessUnit[task.businessUnit] = (byBusinessUnit[task.businessUnit] || 0) + 1;
+      }
+    }
+
+    return {
+      active,
+      queued,
+      completedToday,
+      failedToday,
+      review,
+      byPriority,
+      byBusinessUnit,
+      total: tasks.length,
+    };
+  },
+});
+
+export const reassignTask = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    tenantId: v.string(),
+    newAssigneeIds: v.array(v.id("agents")),
+  },
+  handler: async (ctx, args) => {
+    const task = requireTenant(
+      await ctx.db.get(args.taskId),
+      args.tenantId,
+      "Task"
+    );
+
+    await ctx.db.patch(args.taskId, { assigneeIds: args.newAssigneeIds });
+
+    await ctx.db.insert("activities", {
+      type: "reassignment",
+      agentId: args.newAssigneeIds[0],
+      message: `reassigned "${task.title}"`,
+      targetId: args.taskId,
+      tenantId: args.tenantId,
+    });
+  },
+});
+
+export const escalateTask = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    tenantId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const task = requireTenant(
+      await ctx.db.get(args.taskId),
+      args.tenantId,
+      "Task"
+    );
+
+    const escalationHistory = task.escalationHistory || [];
+
+    // Find the last agent that handled this task
+    let lastAgentName: string | undefined;
+    if (escalationHistory.length > 0) {
+      lastAgentName = escalationHistory[escalationHistory.length - 1].agentId;
+    } else if (task.assigneeIds.length > 0) {
+      const lastAssignee = await ctx.db.get(task.assigneeIds[task.assigneeIds.length - 1]);
+      if (lastAssignee) {
+        lastAgentName = lastAssignee.name;
+      }
+    }
+
+    if (!lastAgentName) {
+      throw new Error("No escalation path available");
+    }
+
+    // Look up the agent to find their escalation path
+    const agent = await ctx.db
+      .query("agents")
+      .withIndex("by_tenant_name", (q) =>
+        q.eq("tenantId", args.tenantId).eq("name", lastAgentName!)
+      )
+      .first();
+
+    if (!agent || !agent.escalationPath || agent.escalationPath.length === 0) {
+      throw new Error("No escalation path available");
+    }
+
+    // Find the next agent in the escalation path
+    const currentIndex = agent.escalationPath.indexOf(lastAgentName);
+    const nextAgentName = currentIndex >= 0 && currentIndex < agent.escalationPath.length - 1
+      ? agent.escalationPath[currentIndex + 1]
+      : agent.escalationPath[0];
+
+    const updatedHistory = [
+      ...escalationHistory,
+      {
+        agentId: nextAgentName,
+        timestamp: Date.now(),
+        status: "escalated",
+      },
+    ];
+
+    await ctx.db.patch(args.taskId, { escalationHistory: updatedHistory });
+
+    // Find any agent to attribute the activity to
+    const activityAgent = task.assigneeIds.length > 0 ? task.assigneeIds[0] : undefined;
+    if (activityAgent) {
+      await ctx.db.insert("activities", {
+        type: "escalation",
+        agentId: activityAgent,
+        message: `escalated "${task.title}" to ${nextAgentName}`,
+        targetId: args.taskId,
+        tenantId: args.tenantId,
+      });
+    }
+  },
+});
+
+export const retryTask = mutation({
+  args: {
+    taskId: v.id("tasks"),
+    tenantId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const task = requireTenant(
+      await ctx.db.get(args.taskId),
+      args.tenantId,
+      "Task"
+    );
+
+    const newTaskId = await ctx.db.insert("tasks", {
+      title: `${task.title} (retry)`,
+      description: task.description,
+      status: "inbox",
+      tags: task.tags,
+      priority: task.priority,
+      businessUnit: task.businessUnit,
+      source: task.source,
+      assigneeIds: [],
+      tenantId: args.tenantId,
+    });
+
+    return newTaskId;
   },
 });

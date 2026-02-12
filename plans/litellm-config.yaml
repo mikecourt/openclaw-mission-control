@@ -1,0 +1,221 @@
+# ============================================================
+# LiteLLM Proxy Configuration
+# OpenClaw Multi-Agent System
+# ============================================================
+# All 18 agents call http://localhost:4000/v1/chat/completions
+# LiteLLM routes to the correct backend based on model name.
+# ============================================================
+
+model_list:
+
+  # --------------------------------------------------------
+  # TIER 1: Claude Opus (Max Plan - via API key from Max)
+  # Note: If using Max plan through claude.ai chat, this
+  # entry is for API-routed tasks only. For direct Max plan
+  # usage, the Lead Architect agent uses claude.ai directly.
+  # --------------------------------------------------------
+  - model_name: claude-opus-4
+    litellm_params:
+      model: anthropic/claude-opus-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
+      max_tokens: 8192
+      timeout: 120
+    model_info:
+      description: "Lead Architect only. Scarce resource - 45 msgs/day budget."
+
+  # --------------------------------------------------------
+  # TIER 2: Claude Sonnet 4 (API - ~$80/mo allocation)
+  # Agents: Sales, Marketing, Backend Dev (fallback)
+  # --------------------------------------------------------
+  - model_name: claude-sonnet-4
+    litellm_params:
+      model: anthropic/claude-sonnet-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
+      max_tokens: 8192
+      timeout: 90
+    model_info:
+      description: "Revenue-critical agents: Sales, Marketing, Backend Dev fallback."
+
+  # --------------------------------------------------------
+  # TIER 2: DeepSeek R1 (API - reasoning)
+  # Agent: Research Analyst
+  # --------------------------------------------------------
+  - model_name: deepseek-r1
+    litellm_params:
+      model: deepseek/deepseek-reasoner
+      api_key: os.environ/DEEPSEEK_API_KEY
+      api_base: https://api.deepseek.com/v1
+      max_tokens: 8192
+      timeout: 120
+    model_info:
+      description: "Research Analyst. Deep reasoning at low cost."
+
+  # --------------------------------------------------------
+  # TIER 2: DeepSeek V3 (API - general)
+  # Agents: Estimator, HR/Training
+  # --------------------------------------------------------
+  - model_name: deepseek-v3
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      api_base: https://api.deepseek.com/v1
+      max_tokens: 8192
+      timeout: 60
+    model_info:
+      description: "Estimator, HR/Training. Cheap general-purpose."
+
+  # --------------------------------------------------------
+  # TIER 2: GPT-4o-mini (API - routing/classification)
+  # Agent: Orchestrator
+  # --------------------------------------------------------
+  - model_name: gpt-4o-mini
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+      max_tokens: 4096
+      timeout: 30
+    model_info:
+      description: "Orchestrator only. Fast classification and routing."
+
+  # --------------------------------------------------------
+  # TIER 2 (FREE): Gemini 2.0 Flash (Google AI Studio)
+  # Agents: Executive Secretary, Tech Writer, Customer Service
+  # --------------------------------------------------------
+  - model_name: gemini-2.0-flash
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+      max_tokens: 8192
+      timeout: 30
+    model_info:
+      description: "High-volume free tier. Exec Sec, Tech Writer, Customer Service."
+
+  # --------------------------------------------------------
+  # TIER 3 (LOCAL): Qwen 2.5 Coder 32B via Ollama
+  # Agents: Backend Dev, Frontend Dev, Automation Eng, DevOps
+  # Coding phase only - not always loaded
+  # --------------------------------------------------------
+  - model_name: qwen2.5-coder:32b
+    litellm_params:
+      model: ollama/qwen2.5-coder:32b
+      api_base: http://localhost:11434
+      max_tokens: 8192
+      timeout: 180
+      stream: true
+    model_info:
+      description: "Local coding model. Coding phase only."
+
+  # --------------------------------------------------------
+  # TIER 3 (LOCAL): Phi-4 14B via Ollama
+  # Agents: QA, Finance, Dispatcher, Fleet Manager
+  # Reasoning phase only - not always loaded
+  # --------------------------------------------------------
+  - model_name: phi-4:14b
+    litellm_params:
+      model: ollama/phi4:14b
+      api_base: http://localhost:11434
+      max_tokens: 8192
+      timeout: 120
+      stream: true
+    model_info:
+      description: "Local reasoning model. Reasoning phase only."
+
+
+# ============================================================
+# ROUTER SETTINGS
+# ============================================================
+router_settings:
+  # Retry on failure - particularly important for local models
+  # that may not be loaded (wrong phase)
+  num_retries: 2
+  retry_after: 5  # seconds
+
+  # Timeout defaults
+  timeout: 120
+  max_budget: 400  # Monthly hard cap in USD (safety net)
+
+  # Rate limiting (protects budget)
+  redis_host: null  # Set if using Redis for distributed rate limiting
+
+
+# ============================================================
+# GENERAL SETTINGS
+# ============================================================
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+  # Logging for cost tracking and debugging
+  database_url: os.environ/LITELLM_DB_URL  # PostgreSQL or SQLite for spend tracking
+
+  # Enable spend tracking per model
+  max_budget: 400
+  budget_duration: "1m"  # monthly
+
+  # Alert when approaching budget
+  alerting:
+    - slack  # optional: set SLACK_WEBHOOK_URL env var
+  alerting_threshold: 0.8  # alert at 80% of budget
+
+
+# ============================================================
+# BUDGET LIMITS PER MODEL (monthly)
+# ============================================================
+# Enforced by LiteLLM spend tracking.
+# These align with the cost plan from the architecture doc.
+litellm_settings:
+  max_budget: 400
+  budget_duration: "1m"
+
+  # Per-model spend limits
+  model_max_budget:
+    claude-sonnet-4: 80
+    deepseek-r1: 10
+    deepseek-v3: 10
+    gpt-4o-mini: 20
+    gemini-2.0-flash: 5    # should be ~$0 but set ceiling
+    qwen2.5-coder:32b: 0   # local, no cost
+    phi-4:14b: 0            # local, no cost
+
+  # Caching: reduces redundant API calls
+  cache: true
+  cache_params:
+    type: "local"           # or "redis" for persistence
+    ttl: 3600               # 1 hour cache for identical prompts
+
+  # Drop params that specific providers don't support
+  drop_params: true
+
+  # Success callbacks for logging
+  success_callback: ["langfuse"]  # optional: swap for your preferred observability
+  failure_callback: ["langfuse"]
+
+
+# ============================================================
+# AGENT-TO-MODEL MAPPING REFERENCE
+# ============================================================
+# This is documentation only - routing is handled by your
+# OpenClaw/Convex orchestrator. Agents just send the model
+# name in their API call to localhost:4000.
+#
+# | Agent              | model_name param        | Tier |
+# |--------------------|-------------------------|------|
+# | Orchestrator       | gpt-4o-mini             | T2   |
+# | Executive Secretary| gemini-2.0-flash        | T2F  |
+# | Research Analyst   | deepseek-r1             | T2   |
+# | Finance Controller | phi-4:14b               | T3   |
+# | Lead Architect     | claude-opus-4           | T1   |
+# | Backend Developer  | qwen2.5-coder:32b       | T3   |
+# |   (fallback)       | claude-sonnet-4         | T2   |
+# | Frontend Developer | qwen2.5-coder:32b       | T3   |
+# | Automation Engineer| qwen2.5-coder:32b       | T3   |
+# | QA/Testing         | phi-4:14b               | T3   |
+# | DevOps             | qwen2.5-coder:32b       | T3   |
+# | Technical Writer   | gemini-2.0-flash        | T2F  |
+# | Customer Service   | gemini-2.0-flash        | T2F  |
+# | Sales/Lead Qual    | claude-sonnet-4         | T2   |
+# | Dispatcher         | phi-4:14b               | T3   |
+# | Estimator          | deepseek-v3             | T2   |
+# | Marketing Content  | claude-sonnet-4         | T2   |
+# | Fleet Manager      | phi-4:14b               | T3   |
+# | HR/Training        | deepseek-v3             | T2   |
+# ============================================================

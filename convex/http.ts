@@ -3,7 +3,6 @@ import { httpAction } from "./_generated/server";
 import { api } from "./_generated/api";
 import { auth } from "./auth";
 
-
 const http = httpRouter();
 
 auth.addHttpRoutes(http);
@@ -223,103 +222,6 @@ http.route({
 	}),
 });
 
-// POST /api/agents/sync — bulk sync agent metadata from openclaw.json
-http.route({
-	path: "/api/agents/sync",
-	method: "POST",
-	handler: httpAction(async (ctx, request) => {
-		if (!validateBearer(request)) return unauthorized();
-		try {
-			const body = await request.json();
-			const tenantId = body.tenantId || "default";
-			const agents: Array<{
-				name: string;
-				role: string;
-				avatar: string;
-				orgId?: string;
-				workspaceId?: string;
-				kind?: string;
-				reportsTo?: string;
-			}> = body.agents || [];
-
-			if (!agents.length) return badRequest("No agents provided");
-
-			// Pass 1: Upsert all agents
-			let created = 0;
-			let updated = 0;
-			for (const agent of agents) {
-				const result = await ctx.runMutation(api.agentSync.upsertAgent, {
-					tenantId,
-					name: agent.name,
-					role: agent.role,
-					avatar: agent.avatar,
-					orgId: agent.orgId,
-					workspaceId: agent.workspaceId,
-					kind: agent.kind,
-				});
-				if (result.action === "created") created++;
-				else updated++;
-			}
-
-			// Pass 2: Resolve reportsTo references
-			const mappings = agents
-				.filter((a) => a.reportsTo)
-				.map((a) => ({
-					agentName: a.orgId || a.name,
-					reportsToName: a.reportsTo!,
-				}));
-
-			let resolved = 0;
-			if (mappings.length > 0) {
-				const result = await ctx.runMutation(api.agentSync.resolveReportsTo, {
-					tenantId,
-					mappings,
-				});
-				resolved = result.resolved;
-			}
-
-			return ok({ ok: true, total: agents.length, created, updated, resolved });
-		} catch (e: any) {
-			return badRequest(e.message || "Failed to sync agents");
-		}
-	}),
-});
-
-// GET /api/agents/active — list agents with status="active" and their task info
-http.route({
-	path: "/api/agents/active",
-	method: "GET",
-	handler: httpAction(async (ctx, request) => {
-		const url = new URL(request.url);
-		const tenantId = url.searchParams.get("tenantId") || "default";
-		const active = await ctx.runQuery(api.agentSync.getActiveAgents, { tenantId });
-		return ok(active);
-	}),
-});
-
-// POST /api/agents/reconcile — mark stale agents as idle
-http.route({
-	path: "/api/agents/reconcile",
-	method: "POST",
-	handler: httpAction(async (ctx, request) => {
-		if (!validateBearer(request)) return unauthorized();
-		try {
-			const body = await request.json();
-			const tenantId = body.tenantId || "default";
-			const agentNames: string[] = body.agentNames || [];
-			if (!agentNames.length) return badRequest("No agent names provided");
-
-			const result = await ctx.runMutation(api.agentSync.reconcileStale, {
-				tenantId,
-				agentNames,
-			});
-			return ok({ ok: true, ...result });
-		} catch (e: any) {
-			return badRequest(e.message || "Failed to reconcile agents");
-		}
-	}),
-});
-
 // --- Agent next-work endpoint (read-only) ---
 
 http.route({
@@ -517,6 +419,133 @@ http.route({
 		} catch (e: any) {
 			return badRequest(e.message || "Failed to update project");
 		}
+	}),
+});
+
+// POST /api/phase/state — receive phase state from phase-swap.sh
+http.route({
+	path: "/api/phase/state",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		const tenantId = body.tenantId || "default";
+		await ctx.runMutation(api.phase.updatePhaseState, {
+			tenantId,
+			currentPhase: body.currentPhase || "coding",
+			model: body.model,
+			ramPercent: body.ramPercent,
+			queuedCoding: body.queuedCoding,
+			queuedReasoning: body.queuedReasoning,
+		});
+		return ok({ ok: true });
+	}),
+});
+
+// GET /api/phase/status — return current phase
+http.route({
+	path: "/api/phase/status",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const url = new URL(request.url);
+		const tenantId = url.searchParams.get("tenantId") || "default";
+		const status = await ctx.runQuery(api.phase.getPhaseStatus, { tenantId });
+		return ok(status);
+	}),
+});
+
+// --- Orchestrator API ---
+
+// POST /api/orchestrator/submit — classify + route + create task
+http.route({
+	path: "/api/orchestrator/submit",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const result = await ctx.runMutation(api.orchestrator.submitTask, {
+				instruction: body.instruction,
+				businessUnit: body.businessUnit || "cross",
+				priority: body.priority,
+				context: body.context,
+				constraints: body.constraints,
+				fromAgent: body.fromAgent,
+				deadline: body.deadline,
+				tenantId: body.tenantId || "default",
+			});
+			return ok(result);
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to submit task");
+		}
+	}),
+});
+
+// POST /api/orchestrator/result — report task completion/failure
+http.route({
+	path: "/api/orchestrator/result",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const result = await ctx.runMutation(api.orchestrator.reportTaskResult, {
+				taskId: body.taskId,
+				status: body.status,
+				result: body.result,
+				failureReason: body.failureReason,
+				optionsConsidered: body.optionsConsidered,
+				tenantId: body.tenantId || "default",
+			});
+			return ok(result);
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to report task result");
+		}
+	}),
+});
+
+// GET /api/orchestrator/dashboard — system overview
+http.route({
+	path: "/api/orchestrator/dashboard",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const url = new URL(request.url);
+		const tenantId = url.searchParams.get("tenantId") || "default";
+		const dashboard = await ctx.runQuery(api.orchestrator.getSystemDashboard, { tenantId });
+		return ok(dashboard);
+	}),
+});
+
+// GET /api/orchestrator/opus — Opus budget status
+http.route({
+	path: "/api/orchestrator/opus",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const url = new URL(request.url);
+		const tenantId = url.searchParams.get("tenantId") || "default";
+		const opus = await ctx.runQuery(api.orchestrator.getOpusDashboard, { tenantId });
+		return ok(opus);
+	}),
+});
+
+// POST /api/activity-log — external log ingestion
+http.route({
+	path: "/api/activity-log",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		const body = await request.json();
+		const tenantId = body.tenantId || "default";
+		await ctx.runMutation(api.activityLog.insert, {
+			tenantId,
+			timestamp: body.timestamp || Date.now(),
+			level: body.level || "info",
+			source: body.source || "external",
+			action: body.action || "log",
+			message: body.message || "",
+			metadata: body.metadata,
+			taskId: body.taskId,
+			agentId: body.agentId,
+		});
+		return ok({ ok: true });
 	}),
 });
 
