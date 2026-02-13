@@ -19,6 +19,7 @@ import type * as fix_loki from "../fix_loki.js";
 import type * as http from "../http.js";
 import type * as messages from "../messages.js";
 import type * as openclaw from "../openclaw.js";
+import type * as orchestrator from "../orchestrator.js";
 import type * as phase from "../phase.js";
 import type * as planUsage from "../planUsage.js";
 import type * as projects from "../projects.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   messages: typeof messages;
   openclaw: typeof openclaw;
+  orchestrator: typeof orchestrator;
   phase: typeof phase;
   planUsage: typeof planUsage;
   projects: typeof projects;

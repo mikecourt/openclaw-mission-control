@@ -7,6 +7,8 @@ import TaskFlowChart from "../components/dashboard/TaskFlowChart";
 import AgentLoadGrid from "../components/dashboard/AgentLoadGrid";
 import BusinessSplitCard from "../components/dashboard/BusinessSplitCard";
 import RecentActivityMini from "../components/dashboard/RecentActivityMini";
+import ModelUsageTable from "../components/dashboard/ModelUsageTable";
+import CostChart from "../components/dashboard/CostChart";
 
 export default function DashboardPage() {
 	const overview = useQuery(api.dashboard.getSystemOverview, { tenantId: DEFAULT_TENANT_ID });
@@ -16,6 +18,8 @@ export default function DashboardPage() {
 	const businessSplit = useQuery(api.dashboard.getBusinessSplit, { tenantId: DEFAULT_TENANT_ID });
 	const recentLog = useQuery(api.activityLog.getRecentLog, { tenantId: DEFAULT_TENANT_ID, limit: 10 });
 	const allTasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
+	const modelUsage = useQuery(api.dashboard.getUsageByModel, { tenantId: DEFAULT_TENANT_ID });
+	const costOverTime = useQuery(api.dashboard.getCostOverTime, { tenantId: DEFAULT_TENANT_ID, hours: 24 });
 
 	// Transform throughput data for the chart
 	const chartData = useMemo(() => {
@@ -58,6 +62,16 @@ export default function DashboardPage() {
 		return result;
 	}, [businessSplit]);
 
+	// Format reset time helper
+	const formatResetTime = (ms: number) => {
+		if (ms <= 0) return "";
+		const hours = Math.floor(ms / (60 * 60 * 1000));
+		const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+		if (hours >= 24) return `${Math.floor(hours / 24)}d`;
+		if (hours > 0) return `${hours}h ${minutes}m`;
+		return `${minutes}m`;
+	};
+
 	if (!overview) {
 		return <div style={{ padding: 20, color: "var(--mc-text-muted)" }}>Loading dashboard...</div>;
 	}
@@ -96,7 +110,7 @@ export default function DashboardPage() {
 					<MetricCard
 						label="Session Usage"
 						value={`${planUsage.session?.pct ?? 0}%`}
-						sub={`Weekly: ${planUsage.weekly?.pct ?? 0}%`}
+						sub={`resets ${formatResetTime(planUsage.session?.resetMs ?? 0)} • Weekly: ${planUsage.weekly?.pct ?? 0}% (resets ${formatResetTime(planUsage.weekly?.resetMs ?? 0)})`}
 						color={
 							(planUsage.session?.pct ?? 0) > 80
 								? "var(--mc-status-error)"
@@ -121,7 +135,7 @@ export default function DashboardPage() {
 			</div>
 
 			{/* Row 2: Business Split (1 col) + Recent Activity (2 cols) */}
-			<div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16 }}>
+			<div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 16, marginBottom: 16 }}>
 				<div className="metric-card">
 					<div className="metric-label">Business Split</div>
 					<BusinessSplitCard data={businessSplitMap} />
@@ -129,6 +143,18 @@ export default function DashboardPage() {
 				<div className="metric-card">
 					<div className="metric-label">Recent Activity</div>
 					<RecentActivityMini activities={recentLog ?? []} />
+				</div>
+			</div>
+
+			{/* Row 3: Usage Analytics */}
+			<div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
+				<div className="metric-card" style={{ minHeight: 250 }}>
+					<div className="metric-label">Cost Over Time (24h)</div>
+					<CostChart data={costOverTime ?? []} />
+				</div>
+				<div className="metric-card" style={{ minHeight: 250 }}>
+					<div className="metric-label">Usage by Model</div>
+					<ModelUsageTable data={modelUsage ?? []} />
 				</div>
 			</div>
 		</div>

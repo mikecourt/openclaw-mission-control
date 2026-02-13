@@ -10,11 +10,13 @@ import {
 	IconSettings,
 	IconBolt,
 	IconShare2,
+	IconTool,
+	IconExternalLink,
 } from "@tabler/icons-react";
 
 const NAV_ITEMS = [
 	{ path: "/dashboard", label: "Dashboard", Icon: IconLayoutDashboard },
-	{ path: "/board", label: "Board", Icon: IconColumns3 },
+	{ path: "/projects", label: "Projects", Icon: IconColumns3 },
 	{ path: "/tasks", label: "Tasks", Icon: IconChecklist },
 	{ path: "/agents", label: "Agents", Icon: IconUsers },
 	{ path: "/agents/escalation", label: "Escalation Map", Icon: IconShare2 },
@@ -38,7 +40,7 @@ export default function NavSidebar() {
 						overflow: "hidden",
 					}}
 				>
-					Mission Control
+					Control Tower
 				</span>
 			</div>
 			<div style={{ marginTop: 8, flex: 1, overflowY: "auto" }}>
@@ -52,6 +54,18 @@ export default function NavSidebar() {
 						<span>{label}</span>
 					</NavLink>
 				))}
+			</div>
+			<div className="nav-sidebar-footer">
+				<a
+					href="http://192.168.4.31:3111"
+					target="_blank"
+					rel="noopener noreferrer"
+					className="nav-item"
+				>
+					<IconTool size={20} />
+					<span>Agent Studio</span>
+					<IconExternalLink size={14} className="nav-external-icon" />
+				</a>
 			</div>
 		</nav>
 	);

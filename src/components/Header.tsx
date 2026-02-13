@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import { IconAlertTriangle, IconAirTrafficControl } from "@tabler/icons-react";
+import { getEffectiveStatuses } from "../lib/status";
 
 type HeaderProps = {
 	onOpenAgents?: () => void;
@@ -23,8 +24,9 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, onOpenTri
 	const usageSummary = useQuery(api.queries.getUsageSummary, { tenantId: DEFAULT_TENANT_ID });
 	const planUsage = useQuery(api.queries.getPlanUsage, { tenantId: DEFAULT_TENANT_ID });
 
-	// Calculate counts
-	const activeAgentsCount = agents ? agents.filter(a => a.status === "active").length : 0;
+	// Calculate counts using effective (computed) status
+	const effectiveStatuses = agents && tasks ? getEffectiveStatuses(agents, tasks) : null;
+	const activeAgentsCount = effectiveStatuses ? Array.from(effectiveStatuses.values()).filter(s => s === "active").length : 0;
 	const tasksInQueueCount = tasks ? tasks.filter(t => t.status !== "done" && t.status !== "archived").length : 0;
 	const projectsInQueueCount = projects ? projects.filter(p => p.status !== "complete" && p.status !== "archived").length : 0;
 	const needsYouCount = needsInput?.length ?? 0;
@@ -161,7 +163,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, onOpenTri
 								{planUsage.session.pct}%
 							</div>
 							<div className="text-[10px] font-semibold tracking-tighter" style={{ color: budgetColor(planUsage.session.pct) }}>
-								SESSION {formatResetTime(planUsage.session.resetMs)}
+								SESSION • {formatResetTime(planUsage.session.resetMs)}
 							</div>
 						</div>
 						<div className="w-px h-8 bg-border" />
@@ -170,7 +172,7 @@ const Header: React.FC<HeaderProps> = ({ onOpenAgents, onOpenLiveFeed, onOpenTri
 								{planUsage.weekly.pct}%
 							</div>
 							<div className="text-[10px] font-semibold tracking-tighter" style={{ color: budgetColor(planUsage.weekly.pct) }}>
-								WEEKLY {formatResetTime(planUsage.weekly.resetMs)}
+								WEEKLY • {formatResetTime(planUsage.weekly.resetMs)}
 							</div>
 						</div>
 					</>

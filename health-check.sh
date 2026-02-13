@@ -13,7 +13,7 @@ else
     ISSUES=$((ISSUES + 1))
     
     # Try to restart it
-    cd /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
+    cd /Users/aidenhdee/.openclaw/shared/projects/control-tower-convex
     nohup npx vite --port 3002 --host 0.0.0.0 > /tmp/mc-vite.log 2>&1 &
     REPORT="$REPORT\n🔄 Attempting restart..."
 fi
@@ -28,7 +28,7 @@ else
 fi
 
 # 3. Check for GitHub updates
-cd /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
+cd /Users/aidenhdee/.openclaw/shared/projects/control-tower-convex
 git fetch origin 2>/dev/null
 LOCAL=$(git rev-parse HEAD 2>/dev/null)
 REMOTE=$(git rev-parse origin/main 2>/dev/null || git rev-parse origin/master 2>/dev/null)
@@ -51,7 +51,7 @@ else
 fi
 
 # 4. Check hook status
-HOOK_STATUS=$(openclaw hooks list 2>&1 | grep "mission-control")
+HOOK_STATUS=$(openclaw hooks list 2>&1 | grep "control-tower")
 if echo "$HOOK_STATUS" | grep -q "ready"; then
     REPORT="$REPORT\n✅ MC hook: enabled and ready"
 else

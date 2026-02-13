@@ -21,6 +21,13 @@ export const PHASE_COLORS: Record<string, string> = {
   any: "#6b7280",
 };
 
+export const STATUS_LABELS: Record<string, string> = {
+  active: "active",
+  idle: "idle",
+  off: "disabled",
+  blocked: "blocked",
+};
+
 export const STATUS_COLORS: Record<string, string> = {
   active: "#22c55e",
   idle: "#6b7280",
@@ -61,7 +68,7 @@ export const BUSINESS_UNIT_COLORS: Record<string, string> = {
 
 export const NAV_ITEMS = [
   { path: "/dashboard", label: "Dashboard", icon: "IconLayoutDashboard" },
-  { path: "/board", label: "Board", icon: "IconColumns3" },
+  { path: "/projects", label: "Projects", icon: "IconColumns3" },
   { path: "/tasks", label: "Tasks", icon: "IconChecklist" },
   { path: "/agents", label: "Agents", icon: "IconUsers" },
   { path: "/opus", label: "Opus Budget", icon: "IconCoin" },

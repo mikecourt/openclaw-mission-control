@@ -233,8 +233,8 @@ const TaskDetailPanel: React.FC<TaskDetailPanelProps> = ({ taskId, onClose, onPr
         },
         body: JSON.stringify({
           message: prompt,
-          sessionKey: `mission:${task._id}`,
-          name: "MissionControl",
+          sessionKey: `control-tower:${task._id}`,
+          name: "ControlTower",
           wakeMode: "now",
         }),
       });

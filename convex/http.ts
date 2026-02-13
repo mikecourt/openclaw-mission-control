@@ -222,6 +222,25 @@ http.route({
 	}),
 });
 
+// POST /api/agents/sync — bulk sync agents from external source
+http.route({
+	path: "/api/agents/sync",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const result = await ctx.runMutation(api.agents.syncAgents, {
+				tenantId: body.tenantId || "default",
+				agents: body.agents || [],
+			});
+			return ok(result);
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to sync agents");
+		}
+	}),
+});
+
 // --- Agent next-work endpoint (read-only) ---
 
 http.route({

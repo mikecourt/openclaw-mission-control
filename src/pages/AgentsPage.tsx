@@ -1,28 +1,40 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
-import DataTable from "../components/shared/DataTable";
+import { BUSINESS_UNITS, STATUS_LABELS } from "../lib/constants";
+import { getEffectiveStatuses, type EffectiveStatus } from "../lib/status";
+import AgentCard from "../components/AgentCard";
+import AddAgentModal from "../components/AddAgentModal";
 import StatusDot from "../components/shared/StatusDot";
-import TierBadge from "../components/shared/TierBadge";
-import ModelBadge from "../components/shared/ModelBadge";
-import BusinessUnitBadge from "../components/shared/BusinessUnitBadge";
-import { BUSINESS_UNITS, AGENT_CATEGORIES } from "../lib/constants";
-import AgentAvatar from "../components/AgentAvatar";
 
-type StatusFilter = "active" | "idle" | "off" | "blocked" | null;
+type StatusFilter = EffectiveStatus | null;
 
 export default function AgentsPage() {
 	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
+	const utilization = useQuery(api.queries.getAgentUtilization, { tenantId: DEFAULT_TENANT_ID });
+	const deleteAgent = useMutation(api.agents.deleteAgent);
 	const navigate = useNavigate();
 
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
 	const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 	const [businessUnitFilter, setBusinessUnitFilter] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
+	const [showAddAgentModal, setShowAddAgentModal] = useState(false);
 
-	const allAgents = (agents || []).filter((a) => a.name !== "OpenClaw");
+	const allAgentsRaw = (agents || []).filter((a) => a.name !== "OpenClaw");
+	const effectiveStatuses = useMemo(
+		() => getEffectiveStatuses(allAgentsRaw, tasks || []),
+		[allAgentsRaw, tasks],
+	);
+
+	// Enrich agents with their computed effective status
+	const allAgents = useMemo(
+		() => allAgentsRaw.map((a) => ({ ...a, effectiveStatus: effectiveStatuses.get(a._id) ?? a.status })),
+		[allAgentsRaw, effectiveStatuses],
+	);
 
 	// Derive unique categories and business units from the data
 	const availableCategories = useMemo(() => {
@@ -49,7 +61,7 @@ export default function AgentsPage() {
 	const agentList = useMemo(() => {
 		let list = allAgents;
 		if (statusFilter) {
-			list = list.filter((a) => a.status === statusFilter);
+			list = list.filter((a) => a.effectiveStatus === statusFilter);
 		}
 		if (categoryFilter) {
 			list = list.filter((a) => a.category === categoryFilter);
@@ -71,66 +83,13 @@ export default function AgentsPage() {
 	const statusCounts = useMemo(() => {
 		const counts: Record<string, number> = {};
 		for (const s of ["active", "idle", "off", "blocked"]) {
-			counts[s] = allAgents.filter((a) => a.status === s).length;
+			counts[s] = allAgents.filter((a) => a.effectiveStatus === s).length;
 		}
 		return counts;
 	}, [allAgents]);
 
-	const columns = [
-		{
-			key: "status",
-			label: "",
-			width: "40px",
-			render: (row: (typeof agentList)[0]) => <StatusDot status={row.status} pulse={row.status === "active"} />,
-		},
-		{
-			key: "name",
-			label: "Agent",
-			render: (row: (typeof agentList)[0]) => (
-				<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-					<AgentAvatar name={row.name} avatar={row.avatar} size={28} />
-					<div>
-						<div style={{ fontWeight: 500 }}>{row.name}</div>
-						<div style={{ fontSize: 11, color: "var(--mc-text-muted)" }}>{row.role}</div>
-					</div>
-				</div>
-			),
-		},
-		{
-			key: "level",
-			label: "Level",
-			width: "70px",
-			render: (row: (typeof agentList)[0]) => (
-				<span style={{ fontSize: 12, color: "var(--mc-text-secondary)" }}>{row.level}</span>
-			),
-		},
-		{
-			key: "tier",
-			label: "Tier",
-			width: "80px",
-			render: (row: (typeof agentList)[0]) => (
-				row.tier ? <TierBadge tier={row.tier} /> : <span style={{ fontSize: 12, color: "var(--mc-text-muted)" }}>-</span>
-			),
-		},
-		{
-			key: "model",
-			label: "Model",
-			width: "160px",
-			render: (row: (typeof agentList)[0]) => (
-				row.model ? <ModelBadge model={row.model} /> : <span style={{ fontSize: 12, color: "var(--mc-text-muted)" }}>-</span>
-			),
-		},
-		{
-			key: "businessUnit",
-			label: "Business",
-			width: "120px",
-			render: (row: (typeof agentList)[0]) => (
-				row.businessUnit
-					? <BusinessUnitBadge unit={row.businessUnit} />
-					: <span style={{ fontSize: 12, color: "var(--mc-text-muted)" }}>-</span>
-			),
-		},
-	];
+	const getUtilization = (agentId: string) =>
+		utilization?.find((u) => u.agentId === agentId);
 
 	const pillStyle = (isActive: boolean) => ({
 		padding: "4px 10px",
@@ -144,8 +103,15 @@ export default function AgentsPage() {
 
 	return (
 		<div>
-			<div className="page-header">
+			<div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 				<h1>Agents</h1>
+				<button
+					type="button"
+					onClick={() => setShowAddAgentModal(true)}
+					className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-[var(--accent-green)] rounded-lg hover:opacity-90 transition-opacity"
+				>
+					<span className="text-base leading-none">+</span> Add Agent
+				</button>
 			</div>
 
 			{/* Search box */}
@@ -185,7 +151,7 @@ export default function AgentsPage() {
 						onClick={() => setStatusFilter(statusFilter === s ? null : s)}
 						style={pillStyle(statusFilter === s)}
 					>
-						<StatusDot status={s} /> <span style={{ marginLeft: 6 }}>{s} ({statusCounts[s]})</span>
+						<StatusDot status={s} /> <span style={{ marginLeft: 6 }}>{STATUS_LABELS[s] || s} ({statusCounts[s]})</span>
 					</span>
 				))}
 			</div>
@@ -239,15 +205,32 @@ export default function AgentsPage() {
 				</div>
 			</div>
 
-			<div className="metric-card" style={{ padding: 0 }}>
-				<DataTable
-					columns={columns}
-					data={agentList}
-					getRowKey={(row) => row._id}
-					onRowClick={(row) => navigate(`/agents/${row._id}`)}
-					emptyMessage="No agents match the current filters"
-				/>
+			{/* Agent cards grid */}
+			<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
+				{agentList.map((agent) => (
+					<AgentCard
+						key={agent._id}
+						agent={agent}
+						effectiveStatus={agent.effectiveStatus}
+						utilization={getUtilization(agent._id)}
+						onDelete={(agentId) => deleteAgent({ id: agentId, tenantId: DEFAULT_TENANT_ID })}
+						onSelectAgent={(agentId) => navigate(`/agents/${agentId}`)}
+					/>
+				))}
 			</div>
+
+			{agentList.length === 0 && (
+				<div style={{ textAlign: "center", padding: "60px 20px", color: "var(--mc-text-muted)" }}>
+					No agents match the current filters
+				</div>
+			)}
+
+			{showAddAgentModal && (
+				<AddAgentModal
+					onClose={() => setShowAddAgentModal(false)}
+					onCreated={() => setShowAddAgentModal(false)}
+				/>
+			)}
 		</div>
 	);
 }

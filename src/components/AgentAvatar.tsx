@@ -81,6 +81,10 @@ const AgentAvatar: React.FC<AgentAvatarProps> = ({
 				height={size}
 				className={`object-cover rounded-full ${className}`}
 				style={{ width: size, height: size }}
+				onError={(e) => {
+					// Fallback to default avatar if image fails to load
+					(e.target as HTMLImageElement).src = "/avatars/default-avatar.svg";
+				}}
 			/>
 		);
 	}
@@ -97,11 +101,16 @@ const AgentAvatar: React.FC<AgentAvatarProps> = ({
 		);
 	}
 
-	// Deterministic pixel art from name
+	// Use default avatar image instead of generated pixel art
 	return (
-		<div className={className} style={{ width: size, height: size }}>
-			{generatePixelAvatar(name, size)}
-		</div>
+		<img
+			src="/avatars/default-avatar.svg"
+			alt={name}
+			width={size}
+			height={size}
+			className={`object-cover rounded-full ${className}`}
+			style={{ width: size, height: size }}
+		/>
 	);
 };
 

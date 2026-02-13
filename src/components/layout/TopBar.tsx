@@ -5,7 +5,7 @@ import { DEFAULT_TENANT_ID } from "../../lib/tenant";
 
 const ROUTE_LABELS: Record<string, string> = {
 	"/dashboard": "Dashboard",
-	"/board": "Board",
+	"/projects": "Projects",
 	"/tasks": "Tasks",
 	"/agents": "Agents",
 	"/agents/escalation": "Escalation Map",
@@ -31,11 +31,21 @@ export default function TopBar() {
 	const sessionPct = planUsage?.session?.pct ?? 0;
 	const weeklyPct = planUsage?.weekly?.pct ?? 0;
 
+	// Format reset time helper
+	const formatResetTime = (ms: number) => {
+		if (ms <= 0) return "";
+		const hours = Math.floor(ms / (60 * 60 * 1000));
+		const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+		if (hours >= 24) return `${Math.floor(hours / 24)}d`;
+		if (hours > 0) return `${hours}h`;
+		return `${minutes}m`;
+	};
+
 	return (
 		<div className="mc-topbar" style={{ gridColumn: 2, gridRow: 1 }}>
 			<div className="breadcrumb">
 				<Link to="/dashboard" style={{ color: "inherit", textDecoration: "none" }}>
-					MC
+					CT
 				</Link>
 				<span style={{ opacity: 0.4 }}>/</span>
 				{hasDetail ? (
@@ -55,40 +65,54 @@ export default function TopBar() {
 
 			{/* Plan usage indicators */}
 			{planUsage && (
-				<div style={{ display: "flex", gap: 16, alignItems: "center", fontSize: 12 }}>
-					<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-						<span style={{ color: "var(--mc-text-muted)" }}>Session</span>
-						<span
-							style={{
-								color:
-									sessionPct > 80
-										? "var(--mc-status-error)"
-										: sessionPct > 60
-											? "var(--mc-status-warn)"
-											: "var(--mc-status-ok)",
-								fontWeight: 600,
-								fontVariantNumeric: "tabular-nums",
-							}}
-						>
-							{sessionPct}%
-						</span>
+				<div style={{ display: "flex", gap: 16, alignItems: "center", fontSize: 11 }}>
+					<div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+						<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+							<span style={{ color: "var(--mc-text-muted)" }}>Session</span>
+							<span
+								style={{
+									color:
+										sessionPct > 80
+											? "var(--mc-status-error)"
+											: sessionPct > 60
+												? "var(--mc-status-warn)"
+												: "var(--mc-status-ok)",
+									fontWeight: 600,
+									fontVariantNumeric: "tabular-nums",
+								}}
+							>
+								{sessionPct}%
+							</span>
+						</div>
+						{planUsage.session?.resetMs && (
+							<span style={{ fontSize: 9, color: "var(--mc-text-muted)", opacity: 0.7 }}>
+								resets {formatResetTime(planUsage.session.resetMs)}
+							</span>
+						)}
 					</div>
-					<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-						<span style={{ color: "var(--mc-text-muted)" }}>Weekly</span>
-						<span
-							style={{
-								color:
-									weeklyPct > 80
-										? "var(--mc-status-error)"
-										: weeklyPct > 60
-											? "var(--mc-status-warn)"
-											: "var(--mc-status-ok)",
-								fontWeight: 600,
-								fontVariantNumeric: "tabular-nums",
-							}}
-						>
-							{weeklyPct}%
-						</span>
+					<div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
+						<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+							<span style={{ color: "var(--mc-text-muted)" }}>Weekly</span>
+							<span
+								style={{
+									color:
+										weeklyPct > 80
+											? "var(--mc-status-error)"
+											: weeklyPct > 60
+												? "var(--mc-status-warn)"
+												: "var(--mc-status-ok)",
+									fontWeight: 600,
+									fontVariantNumeric: "tabular-nums",
+								}}
+							>
+								{weeklyPct}%
+							</span>
+						</div>
+						{planUsage.weekly?.resetMs && (
+							<span style={{ fontSize: 9, color: "var(--mc-text-muted)", opacity: 0.7 }}>
+								resets {formatResetTime(planUsage.weekly.resetMs)}
+							</span>
+						)}
 					</div>
 				</div>
 			)}

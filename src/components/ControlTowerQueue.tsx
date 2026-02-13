@@ -69,7 +69,7 @@ const projectColumns = [
 
 type ActiveTab = "board" | "ideas" | "archived";
 
-interface MissionQueueProps {
+interface ControlTowerQueueProps {
 	selectedTaskId: Id<"tasks"> | null;
 	onSelectTask: (id: Id<"tasks">) => void;
 	selectedProjectId: Id<"projects"> | null;
@@ -80,7 +80,7 @@ interface MissionQueueProps {
 
 const BACKLOG_SENTINEL = "__backlog__" as Id<"projects">;
 
-const MissionQueue: React.FC<MissionQueueProps> = ({
+const ControlTowerQueue: React.FC<ControlTowerQueueProps> = ({
 	selectedTaskId,
 	onSelectTask,
 	selectedProjectId,
@@ -220,8 +220,8 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 				},
 				body: JSON.stringify({
 					message,
-					sessionKey: `mission:${taskId}`,
-					name: "MissionControl",
+					sessionKey: `control-tower:${taskId}`,
+					name: "ControlTower",
 					wakeMode: "now",
 				}),
 			});
@@ -237,7 +237,7 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 				}
 			}
 		} catch (err) {
-			console.error("[MissionQueue] Failed to trigger openclaw agent:", err);
+			console.error("[ControlTowerQueue] Failed to trigger openclaw agent:", err);
 		}
 	};
 
@@ -264,6 +264,13 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 
 	// --- Render ---
 
+	// Tab labels
+	const tabLabels: Record<ActiveTab, string> = {
+		board: "Current Projects",
+		ideas: "Project Ideas",
+		archived: "Archived",
+	};
+
 	// Tab bar (shown when no project is selected)
 	const renderTabBar = () => (
 		<div className="flex gap-1 px-6 py-2 bg-card border-b border-border">
@@ -277,7 +284,7 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 							: "text-muted-foreground hover:bg-muted"
 					}`}
 				>
-					{tab.toUpperCase()}
+					{tabLabels[tab].toUpperCase()}
 					{tab === "ideas" && ideaProjects.length > 0 && (
 						<span className="ml-1.5 text-[9px] opacity-70">{ideaProjects.length}</span>
 					)}
@@ -402,32 +409,8 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 						<KanbanColumn
 							key={col.id}
 							column={col}
-							taskCount={
-								(projects?.filter((p) => (p as unknown as ProjectData).status === col.id).length || 0)
-								+ (col.id === "active" && backlogCount > 0 ? 1 : 0)
-							}
+							taskCount={projects?.filter((p) => (p as unknown as ProjectData).status === col.id).length || 0}
 						>
-							{col.id === "active" && backlogCount > 0 && (
-								<div
-									className="min-w-0 bg-card rounded-lg p-3 sm:p-4 shadow-sm flex flex-col gap-2.5 border border-dashed border-border hover:-translate-y-0.5 hover:shadow-md transition-all cursor-pointer select-none"
-									onClick={() => onSelectProject(BACKLOG_SENTINEL)}
-								>
-									<div className="flex justify-between items-start gap-2">
-										<h3 className="text-sm font-semibold text-foreground leading-tight">
-											Backlog
-										</h3>
-										<span className="text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 bg-muted text-muted-foreground">
-											no project
-										</span>
-									</div>
-									<p className="text-xs text-muted-foreground leading-relaxed">
-										Tasks not yet assigned to a project
-									</p>
-									<div className="flex justify-between text-[10px] text-muted-foreground">
-										<span className="font-semibold">{backlogCount} task{backlogCount !== 1 ? "s" : ""}</span>
-									</div>
-								</div>
-							)}
 							{projects
 								?.filter((p) => (p as unknown as ProjectData).status === col.id)
 								.map((project) => (
@@ -459,4 +442,4 @@ const MissionQueue: React.FC<MissionQueueProps> = ({
 	);
 };
 
-export default MissionQueue;
+export default ControlTowerQueue;

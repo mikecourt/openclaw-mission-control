@@ -26,7 +26,10 @@ export const updateStatus = mutation({
     const agent = await ctx.db.get(args.id);
     assertTenant(agent, args.tenantId, "Agent");
 
-    await ctx.db.patch(args.id, { status: args.status });
+    await ctx.db.patch(args.id, {
+      status: args.status,
+      isEnabled: args.status !== "off",
+    });
   },
 });
 
@@ -174,7 +177,10 @@ export const toggleAgent = mutation({
   handler: async (ctx, args) => {
     const agent = await ctx.db.get(args.id);
     assertTenant(agent, args.tenantId, "Agent");
-    await ctx.db.patch(args.id, { isEnabled: args.enabled });
+    await ctx.db.patch(args.id, {
+      isEnabled: args.enabled,
+      status: args.enabled ? "idle" : "off",
+    });
   },
 });
 
@@ -220,6 +226,98 @@ export const getAgentWithMetrics = query({
       agent: agent!,
       taskCounts: { active, completed, review },
       recentMetrics,
+    };
+  },
+});
+
+// Bulk sync agents from external source (e.g., openclaw.json + agents-registry.json)
+export const syncAgents = mutation({
+  args: {
+    tenantId: v.string(),
+    agents: v.array(v.object({
+      name: v.string(),
+      role: v.string(),
+      avatar: v.optional(v.string()),
+      orgId: v.optional(v.string()),
+      workspaceId: v.optional(v.string()),
+      kind: v.optional(v.string()),
+      reportsTo: v.optional(v.string()),  // Agent name, not ID
+      model: v.optional(v.string()),
+      businessUnit: v.optional(v.string()),
+    })),
+  },
+  handler: async (ctx, args) => {
+    let created = 0;
+    let updated = 0;
+
+    // First pass: create/update agents (reportsTo will be null initially)
+    for (const agentData of args.agents) {
+      const existing = await ctx.db
+        .query("agents")
+        .withIndex("by_tenant_name", (q) =>
+          q.eq("tenantId", args.tenantId).eq("name", agentData.name)
+        )
+        .first();
+
+      if (existing) {
+        // Update existing agent
+        await ctx.db.patch(existing._id, {
+          role: agentData.role,
+          avatar: agentData.avatar || existing.avatar,
+          orgId: agentData.orgId,
+          workspaceId: agentData.workspaceId,
+          model: agentData.model,
+          businessUnit: agentData.businessUnit,
+        });
+        updated++;
+      } else {
+        // Create new agent
+        await ctx.db.insert("agents", {
+          name: agentData.name,
+          role: agentData.role,
+          avatar: agentData.avatar || `/avatars/${agentData.name.toLowerCase()}.jpg`,
+          level: "INT" as const,  // Default level
+          status: agentData.kind === "human" ? "off" as const : "idle" as const,
+          orgId: agentData.orgId,
+          workspaceId: agentData.workspaceId,
+          tenantId: args.tenantId,
+          model: agentData.model,
+          businessUnit: agentData.businessUnit,
+        });
+        created++;
+      }
+    }
+
+    // Second pass: resolve reportsTo relationships by name
+    let resolved = 0;
+    for (const agentData of args.agents) {
+      if (!agentData.reportsTo) continue;
+
+      const agent = await ctx.db
+        .query("agents")
+        .withIndex("by_tenant_name", (q) =>
+          q.eq("tenantId", args.tenantId).eq("name", agentData.name)
+        )
+        .first();
+
+      const reportsToAgent = await ctx.db
+        .query("agents")
+        .withIndex("by_tenant_name", (q) =>
+          q.eq("tenantId", args.tenantId).eq("name", agentData.reportsTo!)
+        )
+        .first();
+
+      if (agent && reportsToAgent) {
+        await ctx.db.patch(agent._id, { reportsTo: reportsToAgent._id });
+        resolved++;
+      }
+    }
+
+    return {
+      created,
+      updated,
+      resolved,
+      total: args.agents.length,
     };
   },
 });

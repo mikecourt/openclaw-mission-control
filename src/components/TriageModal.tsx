@@ -92,8 +92,8 @@ const TriageModal: React.FC<TriageModalProps> = ({ onClose, onSelectTask }) => {
 				},
 				body: JSON.stringify({
 					message,
-					sessionKey: `mission:${taskId}`,
-					name: "MissionControl",
+					sessionKey: `control-tower:${taskId}`,
+					name: "ControlTower",
 					wakeMode: "now",
 				}),
 			});

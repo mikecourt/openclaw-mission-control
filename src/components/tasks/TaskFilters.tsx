@@ -7,6 +7,8 @@ interface TaskFiltersProps {
 	onPriorityChange: (priority: string | undefined) => void;
 	businessUnitFilter: string | undefined;
 	onBusinessUnitChange: (bu: string | undefined) => void;
+	projectFilter: "all" | "no_project" | "has_project";
+	onProjectFilterChange: (filter: "all" | "no_project" | "has_project") => void;
 	search: string;
 	onSearchChange: (search: string) => void;
 	statusCounts: Record<string, number>;
@@ -23,6 +25,8 @@ export default function TaskFilters({
 	onPriorityChange,
 	businessUnitFilter,
 	onBusinessUnitChange,
+	projectFilter,
+	onProjectFilterChange,
 	search,
 	onSearchChange,
 	statusCounts,
@@ -139,6 +143,39 @@ export default function TaskFilters({
 							{bu}
 						</button>
 					))}
+				</div>
+			</div>
+
+			{/* Project filter */}
+			<div>
+				<div style={{ fontSize: 11, color: "var(--mc-text-muted)", marginBottom: 6, textTransform: "uppercase", fontWeight: 600 }}>
+					Project
+				</div>
+				<div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+					<button
+						type="button"
+						className={projectFilter === "all" ? "btn-primary" : "btn-secondary"}
+						onClick={() => onProjectFilterChange("all")}
+						style={{ padding: "3px 10px", fontSize: 11 }}
+					>
+						All
+					</button>
+					<button
+						type="button"
+						className={projectFilter === "no_project" ? "btn-primary" : "btn-secondary"}
+						onClick={() => onProjectFilterChange("no_project")}
+						style={{ padding: "3px 10px", fontSize: 11 }}
+					>
+						No Project
+					</button>
+					<button
+						type="button"
+						className={projectFilter === "has_project" ? "btn-primary" : "btn-secondary"}
+						onClick={() => onProjectFilterChange("has_project")}
+						style={{ padding: "3px 10px", fontSize: 11 }}
+					>
+						Has Project
+					</button>
 				</div>
 			</div>
 		</div>

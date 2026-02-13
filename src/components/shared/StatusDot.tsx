@@ -1,4 +1,4 @@
-import { STATUS_COLORS } from "../../lib/constants";
+import { STATUS_COLORS, STATUS_LABELS } from "../../lib/constants";
 
 interface StatusDotProps {
 	status: string;
@@ -17,7 +17,7 @@ export default function StatusDot({ status, size = 8, pulse = false }: StatusDot
 				backgroundColor: color,
 				animation: pulse && status === "active" ? "card-pulse 2s ease-in-out infinite" : undefined,
 			}}
-			title={status}
+			title={STATUS_LABELS[status] || status}
 		/>
 	);
 }

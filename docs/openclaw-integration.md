@@ -52,7 +52,7 @@ OpenClaw Lifecycle → emitAgentEvent() → onAgentEvent() listener → HTTP POS
 | `convex/openclaw.ts` | Mutations to create/update tasks, add comments, track duration |
 | `convex/queries.ts` | Enriched queries with `lastMessageTime` for task cards |
 
-### OpenClaw Hook (`~/.openclaw/hooks/mission-control/`)
+### OpenClaw Hook (`~/.openclaw/hooks/control-tower/`)
 
 | File | Purpose |
 |------|---------|
@@ -123,7 +123,7 @@ Key functions:
 
 ### Hook Handler
 
-**File: `~/.openclaw/hooks/mission-control/handler.ts`**
+**File: `~/.openclaw/hooks/control-tower/handler.ts`**
 
 Key functions:
 - `extractCleanPrompt(rawPrompt)` - strips channel metadata, returns `{ prompt, source }`
@@ -137,7 +137,7 @@ Key functions:
 
 ### 1. Install the Hook
 
-Copy the hook files to `~/.openclaw/hooks/mission-control/`:
+Copy the hook files to `~/.openclaw/hooks/control-tower/`:
 - `HOOK.md`
 - `handler.ts`
 
@@ -151,7 +151,7 @@ Add to `~/.openclaw/config.jsonc`:
     "internal": {
       "enabled": true,
       "entries": {
-        "mission-control": {
+        "control-tower": {
           "enabled": true,
           "env": {
             "MISSION_CONTROL_URL": "https://your-project.convex.site/openclaw/event"
@@ -252,6 +252,6 @@ If no match is found, a system "OpenClaw" agent is created/used.
 - 1 file created (`convex/openclaw.ts`)
 
 **OpenClaw User Config:**
-- 2 files created (`~/.openclaw/hooks/mission-control/HOOK.md`, `handler.ts`)
+- 2 files created (`~/.openclaw/hooks/control-tower/HOOK.md`, `handler.ts`)
 
 **Total: 6 files, no OpenClaw source changes, event-driven, real-time sync with rich features**

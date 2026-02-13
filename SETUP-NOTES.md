@@ -3,7 +3,7 @@
 ## Installation Summary
 
 **Date:** 2026-02-09  
-**Location:** `/Users/aidenhdee/.openclaw/shared/projects/mission-control-convex`  
+**Location:** `/Users/aidenhdee/.openclaw/shared/projects/control-tower-convex`
 **Repository:** https://github.com/manish-raana/openclaw-mission-control  
 **Author:** manish-raana
 
@@ -14,12 +14,12 @@
 ### 1. Repository Cloned
 ```bash
 git clone https://github.com/manish-raana/openclaw-mission-control.git \
-  /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
+  /Users/aidenhdee/.openclaw/shared/projects/control-tower-convex
 ```
 
 ### 2. Dependencies Installed
 ```bash
-cd /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex
+cd /Users/aidenhdee/.openclaw/shared/projects/control-tower-convex
 npm install
 ```
 
@@ -96,7 +96,7 @@ npx vite --port 3002 --host 0.0.0.0
 
 The project includes a comprehensive hook handler at:
 ```
-/Users/aidenhdee/.openclaw/shared/projects/mission-control-convex/hooks/mission-control/handler.ts
+/Users/aidenhdee/.openclaw/shared/projects/control-tower-convex/hooks/control-tower/handler.ts
 ```
 
 ### What the Hook Does
@@ -159,9 +159,9 @@ POST https://qualified-sheep-733.convex.site/openclaw/event
 
 ```bash
 # Copy the hook handler
-mkdir -p ~/.openclaw/hooks/mission-control
-cp /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex/hooks/mission-control/handler.ts \
-   ~/.openclaw/hooks/mission-control/handler.ts
+mkdir -p ~/.openclaw/hooks/control-tower
+cp /Users/aidenhdee/.openclaw/shared/projects/control-tower-convex/hooks/control-tower/handler.ts \
+   ~/.openclaw/hooks/control-tower/handler.ts
 ```
 
 #### Option 2: Symlink (Easier for Development)
@@ -169,8 +169,8 @@ cp /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex/hooks/missi
 ```bash
 # Symlink for automatic updates when handler.ts changes
 mkdir -p ~/.openclaw/hooks
-ln -s /Users/aidenhdee/.openclaw/shared/projects/mission-control-convex/hooks/mission-control \
-      ~/.openclaw/hooks/mission-control
+ln -s /Users/aidenhdee/.openclaw/shared/projects/control-tower-convex/hooks/control-tower \
+      ~/.openclaw/hooks/control-tower
 ```
 
 #### Configure OpenClaw
@@ -183,7 +183,7 @@ Add to `~/.openclaw/config.jsonc`:
     "internal": {
       "enabled": true,
       "entries": {
-        "mission-control": {
+        "control-tower": {
           "enabled": true,
           "env": {
             "MISSION_CONTROL_URL": "https://qualified-sheep-733.convex.site/openclaw/event"
@@ -240,7 +240,7 @@ After setup, all agent runs will automatically:
 | **Sync** | Real-time via WebSocket | Polling or manual refresh |
 | **Deployment** | Cloud-hosted (Convex) | Self-hosted (localhost) |
 | **Port** | 3002 | 3001 |
-| **Location** | `projects/mission-control-convex` | `projects/mission-control-app` |
+| **Location** | `projects/control-tower-convex` | `projects/mission-control-app` |
 
 ### Features
 
@@ -345,7 +345,7 @@ After setup, all agent runs will automatically:
 - **Change task statuses:** Edit `convex/schema.ts` and `convex/tasks.ts`
 - **Customize UI:** Edit React components in `src/` (uses Tailwind for styling)
 - **Add integrations:** Create new HTTP routes in `convex/http.ts`
-- **Extend hook handler:** Modify `hooks/mission-control/handler.ts` for custom event processing
+- **Extend hook handler:** Modify `hooks/control-tower/handler.ts` for custom event processing
 
 ---
 

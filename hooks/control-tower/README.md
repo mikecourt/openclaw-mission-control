@@ -25,12 +25,12 @@ OpenClaw Gateway
 ### 1. Create Hook Directory
 
 ```bash
-mkdir -p ~/.openclaw/hooks/mission-control
+mkdir -p ~/.openclaw/hooks/control-tower
 ```
 
 ### 2. Copy Hook Files
 
-Copy these files to `~/.openclaw/hooks/mission-control/`:
+Copy these files to `~/.openclaw/hooks/control-tower/`:
 - `HOOK.md` - Hook metadata
 - `handler.ts` - Event handler
 - `README.md` - This file
@@ -45,7 +45,7 @@ Add to `~/.openclaw/openclaw.json` under `hooks.internal.entries`:
     "internal": {
       "enabled": true,
       "entries": {
-        "mission-control": {
+        "control-tower": {
           "enabled": true,
           "env": {
             "MISSION_CONTROL_URL": "http://127.0.0.1:3211/openclaw/event"
@@ -72,12 +72,12 @@ openclaw hooks list
 
 Should show:
 ```
-✓ ready   │ 📊 mission-control │ Sync agent lifecycle events to Control Tower dashboard │ openclaw-managed
+✓ ready   │ 🎛️ control-tower │ Sync agent lifecycle events to Control Tower dashboard │ openclaw-managed
 ```
 
 Get detailed hook info:
 ```bash
-openclaw hooks info mission-control
+openclaw hooks info control-tower
 ```
 
 ### 5. Restart Gateway
@@ -98,9 +98,9 @@ View recent logs:
 openclaw logs --tail 50
 ```
 
-Check for mission-control specific logs:
+Check for control-tower specific logs:
 ```bash
-openclaw logs --filter mission-control
+openclaw logs --filter control-tower
 ```
 
 ## Testing
@@ -114,7 +114,7 @@ openclaw agent --agent main -m "test message"
 ### Check Logs for Events
 
 ```bash
-openclaw logs --filter mission-control --tail 20
+openclaw logs --filter control-tower --tail 20
 ```
 
 ### Check Control Tower UI
@@ -171,13 +171,13 @@ openclaw hooks list
 openclaw hooks check
 ```
 
-- Check `~/.openclaw/hooks/mission-control/HOOK.md` exists
+- Check `~/.openclaw/hooks/control-tower/HOOK.md` exists
 - Ensure `hooks.internal.enabled: true` in config
 
 ### Check Hook Details
 
 ```bash
-openclaw hooks info mission-control
+openclaw hooks info control-tower
 ```
 
 ### "Unrecognized key" Error
@@ -187,7 +187,7 @@ openclaw hooks info mission-control
 ### View Config
 
 ```bash
-openclaw config show hooks.internal.entries.mission-control
+openclaw config show hooks.internal.entries.control-tower
 ```
 
 ### "Cannot find package 'openclaw'"
@@ -202,14 +202,14 @@ openclaw config show hooks.internal.entries.mission-control
 ### Enable/Disable Hook
 
 ```bash
-openclaw hooks enable mission-control
-openclaw hooks disable mission-control
+openclaw hooks enable control-tower
+openclaw hooks disable control-tower
 ```
 
 ## Files
 
 ```
-~/.openclaw/hooks/mission-control/
+~/.openclaw/hooks/control-tower/
 ├── HOOK.md      # Hook metadata (events: gateway:startup)
 ├── handler.ts   # Event handler
 └── README.md    # This file

@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "convex/react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import DataTable from "../components/shared/DataTable";
@@ -9,7 +9,7 @@ import BusinessUnitBadge from "../components/shared/BusinessUnitBadge";
 import TimeAgo from "../components/shared/TimeAgo";
 import MetricCard from "../components/shared/MetricCard";
 import TaskFilters from "../components/tasks/TaskFilters";
-import TaskSubmitModal from "../components/tasks/TaskSubmitModal";
+import AddTaskModal from "../components/AddTaskModal";
 import { TASK_STATUS_COLORS } from "../lib/constants";
 import { formatDuration } from "../lib/utils";
 import { IconPlus, IconFilter } from "@tabler/icons-react";
@@ -18,15 +18,33 @@ export default function TasksPage() {
 	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
 	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
 	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
 
 	const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
 	const [priorityFilter, setPriorityFilter] = useState<string | undefined>(undefined);
 	const [businessUnitFilter, setBusinessUnitFilter] = useState<string | undefined>(undefined);
+	const [projectFilter, setProjectFilter] = useState<"all" | "no_project" | "has_project">("all");
 	const [search, setSearch] = useState("");
 	const [showFilters, setShowFilters] = useState(true);
 	const [showModal, setShowModal] = useState(false);
+	const [preSelectedAgentId, setPreSelectedAgentId] = useState<string | undefined>(undefined);
 
 	const agentMap = new Map((agents || []).map((a) => [a._id, a]));
+
+	// Detect query parameters for auto-opening modal with pre-selected agent
+	useEffect(() => {
+		const shouldOpenModal = searchParams.get("new") === "true";
+		const assigneeId = searchParams.get("assignee");
+
+		if (shouldOpenModal) {
+			setShowModal(true);
+			if (assigneeId) {
+				setPreSelectedAgentId(assigneeId);
+			}
+			// Clear query params after opening
+			setSearchParams({});
+		}
+	}, [searchParams, setSearchParams]);
 
 	// Compute status counts from all tasks (before filtering)
 	const statusCounts = useMemo(() => {
@@ -67,6 +85,11 @@ export default function TasksPage() {
 		if (businessUnitFilter) {
 			filtered = filtered.filter((t) => t.businessUnit === businessUnitFilter);
 		}
+		if (projectFilter === "no_project") {
+			filtered = filtered.filter((t) => !t.projectId);
+		} else if (projectFilter === "has_project") {
+			filtered = filtered.filter((t) => t.projectId);
+		}
 		if (search.trim()) {
 			const q = search.toLowerCase();
 			filtered = filtered.filter(
@@ -77,7 +100,7 @@ export default function TasksPage() {
 		}
 
 		return filtered.sort((a, b) => b._creationTime - a._creationTime);
-	}, [tasks, statusFilter, priorityFilter, businessUnitFilter, search]);
+	}, [tasks, statusFilter, priorityFilter, businessUnitFilter, projectFilter, search]);
 
 	const columns = [
 		{
@@ -206,6 +229,8 @@ export default function TasksPage() {
 							onPriorityChange={setPriorityFilter}
 							businessUnitFilter={businessUnitFilter}
 							onBusinessUnitChange={setBusinessUnitFilter}
+							projectFilter={projectFilter}
+							onProjectFilterChange={setProjectFilter}
 							search={search}
 							onSearchChange={setSearch}
 							statusCounts={statusCounts}
@@ -218,7 +243,7 @@ export default function TasksPage() {
 					<div style={{ padding: "10px 16px", borderBottom: "1px solid var(--mc-border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 						<span style={{ fontSize: 12, color: "var(--mc-text-muted)" }}>
 							{taskList.length} task{taskList.length !== 1 ? "s" : ""}
-							{(statusFilter || priorityFilter || businessUnitFilter || search) && " (filtered)"}
+							{(statusFilter || priorityFilter || businessUnitFilter || projectFilter !== "all" || search) && " (filtered)"}
 						</span>
 					</div>
 					<DataTable
@@ -231,7 +256,20 @@ export default function TasksPage() {
 				</div>
 			</div>
 
-			<TaskSubmitModal open={showModal} onClose={() => setShowModal(false)} />
+			{showModal && (
+				<AddTaskModal
+					onClose={() => {
+						setShowModal(false);
+						setPreSelectedAgentId(undefined);
+					}}
+					onCreated={(taskId) => {
+						setShowModal(false);
+						setPreSelectedAgentId(undefined);
+						navigate(`/tasks/${taskId}`);
+					}}
+					initialAssigneeId={preSelectedAgentId}
+				/>
+			)}
 		</div>
 	);
 }

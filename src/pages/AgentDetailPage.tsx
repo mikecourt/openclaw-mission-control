@@ -10,7 +10,7 @@ import TierBadge from "../components/shared/TierBadge";
 import ModelBadge from "../components/shared/ModelBadge";
 import BusinessUnitBadge from "../components/shared/BusinessUnitBadge";
 import SystemPromptEditor from "../components/agents/SystemPromptEditor";
-import { PHASE_COLORS } from "../lib/constants";
+import { PHASE_COLORS, STATUS_LABELS } from "../lib/constants";
 import { IconArrowLeft } from "@tabler/icons-react";
 import AgentAvatar from "../components/AgentAvatar";
 import { Id } from "../../convex/_generated/dataModel";
@@ -70,7 +70,7 @@ export default function AgentDetailPage() {
 		await toggleAgent({
 			id: id as Id<"agents">,
 			tenantId: DEFAULT_TENANT_ID,
-			enabled: !(agent.isEnabled !== false),
+			enabled: !isEnabled,
 		});
 	};
 
@@ -87,7 +87,7 @@ export default function AgentDetailPage() {
 		);
 	}
 
-	const isEnabled = agent.isEnabled !== false;
+	const isEnabled = agent.isEnabled !== false && agent.status !== "off";
 	const phaseColor = agent.phase ? PHASE_COLORS[agent.phase] || "var(--mc-text-secondary)" : undefined;
 
 	return (
@@ -105,7 +105,7 @@ export default function AgentDetailPage() {
 					</h1>
 					<div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
 						<StatusDot status={agent.status} pulse={agent.status === "active"} />
-						<span style={{ fontSize: 13, color: "var(--mc-text-secondary)" }}>{agent.status}</span>
+						<span style={{ fontSize: 13, color: "var(--mc-text-secondary)" }}>{STATUS_LABELS[agent.status] || agent.status}</span>
 						<span style={{ color: "var(--mc-text-muted)" }}>|</span>
 						<span style={{ fontSize: 13, color: "var(--mc-text-secondary)" }}>{agent.role}</span>
 						<span style={{ color: "var(--mc-text-muted)" }}>|</span>

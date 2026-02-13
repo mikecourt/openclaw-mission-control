@@ -64,7 +64,7 @@ function getModelRates(modelId: string) {
 }
 
 let listenerRegistered = false;
-let missionControlUrl: string | undefined;
+let controlTowerUrl: string | undefined;
 
 // Track session info by sessionKey
 const sessionInfo = new Map<string, { agentId: string; sessionId: string }>();
@@ -75,25 +75,25 @@ const lastRealRunId = new Map<string, string>();
 // Track pending write tool calls by toolCallId
 const pendingWrites = new Map<string, { filePath: string; content: string; sessionKey: string }>();
 
-async function postToMissionControl(payload: Record<string, unknown>) {
-  if (!missionControlUrl) return;
+async function postToControlTower(payload: Record<string, unknown>) {
+  if (!controlTowerUrl) return;
 
   try {
-    const response = await fetch(missionControlUrl, {
+    const response = await fetch(controlTowerUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
     if (!response.ok) {
-      console.error("[mission-control] POST failed:", response.status);
+      console.error("[control-tower] POST failed:", response.status);
     }
   } catch (err) {
-    console.error("[mission-control] Failed:", err instanceof Error ? err.message : err);
+    console.error("[control-tower] Failed:", err instanceof Error ? err.message : err);
   }
 }
 
 function resolveUrl(cfg?: OpenClawConfig): string | undefined {
-  const hookConfig = cfg?.hooks?.internal?.entries?.["mission-control"];
+  const hookConfig = cfg?.hooks?.internal?.entries?.["control-tower"];
   return hookConfig?.env?.MISSION_CONTROL_URL || process.env.MISSION_CONTROL_URL;
 }
 
@@ -176,7 +176,7 @@ async function parseSessionCosts(sessionFilePath: string): Promise<CostData | nu
 
     return { totalCost, totalTokens, models };
   } catch (err) {
-    console.error("[mission-control] Failed to parse session costs:", err);
+    console.error("[control-tower] Failed to parse session costs:", err);
     return null;
   }
 }
@@ -211,7 +211,7 @@ async function getLastUserMessage(sessionFilePath: string): Promise<string | nul
       }
     }
   } catch (err) {
-    console.error("[mission-control] Failed to read session file:", err);
+    console.error("[control-tower] Failed to read session file:", err);
   }
   return null;
 }
@@ -246,7 +246,7 @@ async function getLastAssistantMessage(sessionFilePath: string): Promise<string 
       }
     }
   } catch (err) {
-    console.error("[mission-control] Failed to read session file:", err);
+    console.error("[control-tower] Failed to read session file:", err);
   }
   return null;
 }
@@ -346,12 +346,12 @@ async function findAgentEventsModule(): Promise<{
 
 const handler = async (event: HookEvent) => {
   // Initialize URL from config
-  if (!missionControlUrl) {
+  if (!controlTowerUrl) {
     const cfg = event.context.cfg as OpenClawConfig | undefined;
-    missionControlUrl = resolveUrl(cfg);
+    controlTowerUrl = resolveUrl(cfg);
   }
 
-  console.log(`[mission-control] Event: ${event.type}:${event.action} session=${event.sessionKey}`);
+  console.log(`[control-tower] Event: ${event.type}:${event.action} session=${event.sessionKey}`);
 
   // Handle agent bootstrap - store session info for later
   if (event.type === "agent" && event.action === "bootstrap") {
@@ -359,7 +359,7 @@ const handler = async (event: HookEvent) => {
     const sessionId = event.context.sessionId as string | undefined;
 
     if (agentId && sessionId) {
-      console.log("[mission-control] Storing session info:", agentId, sessionId);
+      console.log("[control-tower] Storing session info:", agentId, sessionId);
       sessionInfo.set(event.sessionKey, { agentId, sessionId });
     }
     return;
@@ -369,15 +369,15 @@ const handler = async (event: HookEvent) => {
   if (event.type === "gateway" && event.action === "startup") {
     if (listenerRegistered) return;
 
-    if (!missionControlUrl) {
-      console.log("[mission-control] No URL configured, skipping");
+    if (!controlTowerUrl) {
+      console.log("[control-tower] No URL configured, skipping");
       return;
     }
 
     try {
       const agentEvents = await findAgentEventsModule();
       if (!agentEvents) {
-        console.error("[mission-control] Could not find agent-events module");
+        console.error("[control-tower] Could not find agent-events module");
         return;
       }
 
@@ -393,7 +393,7 @@ const handler = async (event: HookEvent) => {
           // Skip heartbeat runs — they shouldn't create tasks
           const messageChannel = evt.data?.messageChannel as string | undefined;
           if (messageChannel === "heartbeat") {
-            console.log("[mission-control] Skipping heartbeat lifecycle event");
+            console.log("[control-tower] Skipping heartbeat lifecycle event");
             return;
           }
 
@@ -412,9 +412,9 @@ const handler = async (event: HookEvent) => {
                 const extracted = extractCleanPrompt(rawPrompt);
                 prompt = extracted.prompt;
                 source = extracted.source;
-                console.log("[mission-control] Raw prompt:", rawPrompt.slice(0, 100));
-                console.log("[mission-control] Clean prompt:", prompt.slice(0, 100));
-                console.log("[mission-control] Source:", source);
+                console.log("[control-tower] Raw prompt:", rawPrompt.slice(0, 100));
+                console.log("[control-tower] Clean prompt:", prompt.slice(0, 100));
+                console.log("[control-tower] Source:", source);
               }
             }
 
@@ -423,7 +423,7 @@ const handler = async (event: HookEvent) => {
             const isUserChannel = (messageChannel && userChannels.includes(messageChannel)) || source !== null;
 
             if (!isUserChannel && rawPrompt && (rawPrompt.startsWith("System:") || rawPrompt.startsWith("Read HEARTBEAT"))) {
-              console.log("[mission-control] System follow-up run, linking to previous runId:", lastRealRunId.get(sessionKey));
+              console.log("[control-tower] System follow-up run, linking to previous runId:", lastRealRunId.get(sessionKey));
               return;
             }
 
@@ -434,9 +434,9 @@ const handler = async (event: HookEvent) => {
 
             // Track this as the last real runId for this session
             lastRealRunId.set(sessionKey, evt.runId);
-            console.log("[mission-control] Tracked real runId:", evt.runId, "for session:", sessionKey);
+            console.log("[control-tower] Tracked real runId:", evt.runId, "for session:", sessionKey);
 
-            void postToMissionControl({
+            void postToControlTower({
               runId: evt.runId,
               action: "start",
               sessionKey,
@@ -458,13 +458,13 @@ const handler = async (event: HookEvent) => {
                 if (response.length > maxLen) {
                   response = response.slice(0, maxLen) + "...";
                 }
-                console.log("[mission-control] Captured response:", response.slice(0, 100));
+                console.log("[control-tower] Captured response:", response.slice(0, 100));
               }
 
               // Parse session costs
               costData = await parseSessionCosts(sessionFile);
               if (costData) {
-                console.log(`[mission-control] Cost data: $${costData.totalCost.toFixed(4)} | ${costData.totalTokens} tokens | ${costData.models.length} models`);
+                console.log(`[control-tower] Cost data: $${costData.totalCost.toFixed(4)} | ${costData.totalTokens} tokens | ${costData.models.length} models`);
               }
             }
 
@@ -484,11 +484,11 @@ const handler = async (event: HookEvent) => {
               payload.costData = costData;
             }
 
-            void postToMissionControl(payload);
+            void postToControlTower(payload);
           } else if (phase === "error") {
             const errorRunId = lastRealRunId.get(sessionKey) || evt.runId;
             sessionInfo.delete(sessionKey);
-            void postToMissionControl({
+            void postToControlTower({
               runId: errorRunId,
               action: "error",
               sessionKey,
@@ -510,7 +510,7 @@ const handler = async (event: HookEvent) => {
           const effectiveRunId = lastRealRunId.get(sessionKey) || evt.runId;
 
           if (toolName && phase === "start") {
-            void postToMissionControl({
+            void postToControlTower({
               runId: effectiveRunId,
               action: "progress",
               sessionKey,
@@ -527,7 +527,7 @@ const handler = async (event: HookEvent) => {
 
               if (filePath && content) {
                 pendingWrites.set(toolCallId, { filePath, content, sessionKey });
-                console.log(`[mission-control] Tracking write: ${toolCallId} -> ${filePath}`);
+                console.log(`[control-tower] Tracking write: ${toolCallId} -> ${filePath}`);
               }
             }
           }
@@ -551,7 +551,7 @@ const handler = async (event: HookEvent) => {
 
               const info = sessionInfo.get(pending.sessionKey);
 
-              void postToMissionControl({
+              void postToControlTower({
                 runId: effectiveRunId,
                 action: "document",
                 sessionKey: pending.sessionKey,
@@ -566,7 +566,7 @@ const handler = async (event: HookEvent) => {
                 eventType: "tool:write",
               });
 
-              console.log(`[mission-control] Document captured: ${fileName} (${docType})`);
+              console.log(`[control-tower] Document captured: ${fileName} (${docType})`);
             }
 
             pendingWrites.delete(toolCallId);
@@ -602,7 +602,7 @@ const handler = async (event: HookEvent) => {
 
                 const info = sessionInfo.get(sessionKey);
 
-                void postToMissionControl({
+                void postToControlTower({
                   runId: effectiveRunId,
                   action: "document",
                   sessionKey,
@@ -617,9 +617,9 @@ const handler = async (event: HookEvent) => {
                   eventType: "exec:file",
                 });
 
-                console.log(`[mission-control] Exec file captured: ${fileName} (${docType})`);
+                console.log(`[control-tower] Exec file captured: ${fileName} (${docType})`);
               } else {
-                console.log(`[mission-control] Exec result (no file found): ${text.slice(0, 150)}`);
+                console.log(`[control-tower] Exec result (no file found): ${text.slice(0, 150)}`);
               }
             }
           }
@@ -630,7 +630,7 @@ const handler = async (event: HookEvent) => {
           const chunkType = evt.data?.type as string | undefined;
 
           if (chunkType === "thinking_start") {
-            void postToMissionControl({
+            void postToControlTower({
               runId: evt.runId,
               action: "progress",
               sessionKey,
@@ -643,15 +643,15 @@ const handler = async (event: HookEvent) => {
 
         // Log unhandled streams for diagnostics
         if (!["lifecycle", "tool", "exec", "assistant"].includes(evt.stream)) {
-          console.log(`[mission-control] Unhandled stream: ${evt.stream}`, JSON.stringify(evt.data).slice(0, 200));
+          console.log(`[control-tower] Unhandled stream: ${evt.stream}`, JSON.stringify(evt.data).slice(0, 200));
         }
       });
 
       listenerRegistered = true;
-      console.log("[mission-control] Registered event listener");
-      console.log("[mission-control] URL:", missionControlUrl);
+      console.log("[control-tower] Registered event listener");
+      console.log("[control-tower] URL:", controlTowerUrl);
     } catch (err) {
-      console.error("[mission-control] Failed:", err instanceof Error ? err.message : err);
+      console.error("[control-tower] Failed:", err instanceof Error ? err.message : err);
     }
   }
 };

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Id } from "../../convex/_generated/dataModel";
 import Header from "../components/Header";
 import AgentsSidebar from "../components/AgentsSidebar";
-import MissionQueue from "../components/MissionQueue";
+import ControlTowerQueue from "../components/ControlTowerQueue";
 import RightSidebar from "../components/RightSidebar";
 import TrayContainer from "../components/Trays/TrayContainer";
 import TaskDetailPanel from "../components/TaskDetailPanel";
@@ -117,7 +117,7 @@ export default function BoardPage() {
 				onAddAgent={() => setShowAddAgentModal(true)}
 				onSelectAgent={(agentId) => setSelectedAgentId(agentId as Id<"agents">)}
 			/>
-			<MissionQueue
+			<ControlTowerQueue
 				selectedTaskId={selectedTaskId}
 				onSelectTask={setSelectedTaskId}
 				selectedProjectId={selectedProjectId}

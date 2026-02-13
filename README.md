@@ -66,10 +66,10 @@ When an OpenClaw agent runs:
 Copy the hook to your OpenClaw hooks directory:
 
 ```bash
-cp -r ~/.openclaw/hooks/mission-control ~/.openclaw/hooks/
+cp -r ~/.openclaw/hooks/control-tower ~/.openclaw/hooks/
 ```
 
-Or create it manually at `~/.openclaw/hooks/mission-control/handler.ts`.
+Or create it manually at `~/.openclaw/hooks/control-tower/handler.ts`.
 
 #### 2. Configure the Webhook URL
 
@@ -81,7 +81,7 @@ Add the Control Tower URL to your OpenClaw config (`~/.openclaw/config.jsonc`):
     "internal": {
       "enabled": true,
       "entries": {
-        "mission-control": {
+        "control-tower": {
           "enabled": true,
           "env": {
             "MISSION_CONTROL_URL": "https://your-project.convex.site/openclaw/event"

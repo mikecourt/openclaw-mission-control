@@ -1,5 +1,5 @@
 ---
-name: mission-control
+name: control-tower
 description: "Sync agent lifecycle events to Control Tower dashboard"
 homepage: https://github.com/manish-raana/openclaw-mission-control
 metadata:
@@ -33,7 +33,7 @@ Add to `~/.openclaw/openclaw.json`:
     "internal": {
       "enabled": true,
       "entries": {
-        "mission-control": {
+        "control-tower": {
           "enabled": true,
           "env": {
             "MISSION_CONTROL_URL": "http://127.0.0.1:3211/openclaw/event"
@@ -61,5 +61,5 @@ Alternatively, set the `MISSION_CONTROL_URL` environment variable (hook config t
 ## Disabling
 
 ```bash
-openclaw hooks disable mission-control
+openclaw hooks disable control-tower
 ```

@@ -48,7 +48,7 @@ export default function SettingsPage() {
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement("a");
 		a.href = url;
-		a.download = `mission-control-export-${new Date().toISOString().split("T")[0]}.json`;
+		a.download = `control-tower-export-${new Date().toISOString().split("T")[0]}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
 	};

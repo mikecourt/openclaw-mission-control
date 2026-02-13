@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import AgentAvatar from "./AgentAvatar";
+import { STATUS_LABELS } from "../lib/constants";
+import { getEffectiveStatus, type EffectiveStatus } from "../lib/status";
 
 type AgentsSidebarProps = {
 	isOpen?: boolean;
@@ -20,12 +22,22 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 	onSelectAgent,
 }) => {
 	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
+	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
 	const utilization = useQuery(api.queries.getAgentUtilization, { tenantId: DEFAULT_TENANT_ID });
 	const updateStatus = useMutation(api.agents.updateStatus);
 	const deleteAgent = useMutation(api.agents.deleteAgent);
 
 	const getUtilization = (agentId: string) =>
 		utilization?.find((u) => u.agentId === agentId);
+
+	const effectiveStatusMap = useMemo(() => {
+		if (!agents) return new Map<string, EffectiveStatus>();
+		const map = new Map<string, EffectiveStatus>();
+		for (const a of agents) {
+			map.set(a._id, getEffectiveStatus(a, tasks || []));
+		}
+		return map;
+	}, [agents, tasks]);
 
 	if (agents === undefined) {
 		return (
@@ -97,7 +109,9 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 			)}
 
 			<div className="flex-1 overflow-y-auto py-3">
-				{agents.map((agent) => (
+				{agents.map((agent) => {
+					const es = effectiveStatusMap.get(agent._id) ?? agent.status;
+					return (
 					<div
 						key={agent._id}
 						className="relative flex items-center gap-3 px-6 py-3 cursor-pointer hover:bg-muted transition-colors group"
@@ -169,28 +183,28 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 									});
 								}}
 								className={`text-[9px] font-bold flex items-center gap-1 tracking-wider uppercase cursor-pointer hover:opacity-70 transition-opacity ${
-									agent.status === "active"
+									es === "active"
 										? "text-[var(--status-working)]"
-										: agent.status === "blocked"
+										: es === "blocked"
 											? "text-[var(--accent-orange)]"
-											: agent.status === "off"
+											: es === "off"
 												? "text-[var(--status-off)]"
 												: "text-muted-foreground"
 								}`}
-								title={`Status: ${agent.status} — click to cycle`}
+								title={`Status: ${STATUS_LABELS[es] || es} — click to cycle`}
 							>
 								<span
 									className={`w-1.5 h-1.5 rounded-full ${
-										agent.status === "active"
+										es === "active"
 											? "bg-[var(--status-working)]"
-											: agent.status === "blocked"
+											: es === "blocked"
 												? "bg-[var(--accent-orange)]"
-												: agent.status === "off"
+												: es === "off"
 													? "bg-[var(--status-off)]"
 													: "bg-muted-foreground"
 									}`}
 								/>
-								{agent.status}
+								{STATUS_LABELS[es] || es}
 							</button>
 							{onAddTask && (
 								<button
@@ -199,21 +213,22 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 										e.stopPropagation();
 										onAddTask(agent._id);
 									}}
-									disabled={agent.status !== "active"}
+									disabled={es !== "active"}
 									className={`inline-flex h-[18px] w-[18px] items-center justify-center rounded text-white text-base font-bold leading-none transition-opacity ${
-										agent.status !== "active"
+										es !== "active"
 											? "bg-muted-foreground/40 cursor-not-allowed"
 											: "bg-[var(--accent-blue)] hover:opacity-90"
 									}`}
 									aria-label={`Add task for ${agent.name}`}
-									title={agent.status !== "active" ? `${agent.name} is idle` : `Add task for ${agent.name}`}
+									title={es !== "active" ? `${agent.name} is idle` : `Add task for ${agent.name}`}
 								>
 									+
 								</button>
 							)}
 						</div>
 					</div>
-				))}
+					);
+				})}
 			</div>
 		</aside>
 	);

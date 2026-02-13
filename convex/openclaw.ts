@@ -64,9 +64,9 @@ export const receiveAgentEvent = mutation({
 			.filter((q) => q.eq(q.field("openclawRunId"), args.runId))
 			.first();
 
-		// Fallback: find by sessionKey (e.g. "agent:main:mission:<taskId>")
+		// Fallback: find by sessionKey (e.g. "agent:main:control-tower:<taskId>")
 		if (!task && args.sessionKey) {
-			const match = args.sessionKey.match(/mission:(.+)$/);
+			const match = args.sessionKey.match(/control-tower:(.+)$/);
 			if (match) {
 				const taskId = ctx.db.normalizeId("tasks", match[1]);
 				if (taskId) {
