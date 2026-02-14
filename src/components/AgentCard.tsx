@@ -26,7 +26,6 @@ interface AgentCardProps {
 		totalCost: number;
 	};
 	onAddTask?: (agentId: string) => void;
-	onDelete?: (agentId: string) => void;
 	onSelectAgent?: (agentId: string) => void;
 	compact?: boolean;
 }
@@ -35,8 +34,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
 	agent,
 	effectiveStatus,
 	utilization,
-	onAddTask,
-	onDelete,
+	onAddTask: _onAddTask,
 	onSelectAgent,
 	compact = false,
 }) => {
@@ -50,25 +48,6 @@ const AgentCard: React.FC<AgentCardProps> = ({
 			className="relative flex items-center gap-3 px-6 py-3 cursor-pointer hover:bg-muted transition-colors group bg-card border border-border rounded-lg"
 			onClick={() => onSelectAgent?.(agent._id)}
 		>
-			{onDelete && (
-				<button
-					type="button"
-					onClick={(e) => {
-						e.stopPropagation();
-						if (confirm(`Delete ${agent.name}?`)) {
-							onDelete(agent._id);
-						}
-					}}
-					className="absolute left-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity inline-flex h-[22px] w-[22px] items-center justify-center rounded hover:bg-[var(--accent-red)]/10 text-[var(--accent-red)] z-10"
-					aria-label={`Delete ${agent.name}`}
-					title={`Delete ${agent.name}`}
-				>
-					<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-						<path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/>
-						<path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/>
-					</svg>
-				</button>
-			)}
 			<AgentAvatar name={agent.name} avatar={agent.avatar} size={compact ? 40 : 50} />
 			<div className="flex-1 min-w-0">
 				<div className="flex items-center gap-1.5 mb-0.5">
@@ -116,7 +95,7 @@ const AgentCard: React.FC<AgentCardProps> = ({
 							blocked: "active",
 						};
 						updateStatus({
-							id: agent._id,
+							id: agent._id as any,
 							status: cycle[agent.status] ?? "active",
 							tenantId: DEFAULT_TENANT_ID,
 						});

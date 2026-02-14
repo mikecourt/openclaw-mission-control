@@ -10,7 +10,6 @@ type AgentsSidebarProps = {
 	isOpen?: boolean;
 	onClose?: () => void;
 	onAddTask?: (preselectedAgentId?: string) => void;
-	onAddAgent?: () => void;
 	onSelectAgent?: (agentId: string) => void;
 };
 
@@ -18,14 +17,12 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 	isOpen = false,
 	onClose,
 	onAddTask,
-	onAddAgent,
 	onSelectAgent,
 }) => {
 	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
 	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
 	const utilization = useQuery(api.queries.getAgentUtilization, { tenantId: DEFAULT_TENANT_ID });
 	const updateStatus = useMutation(api.agents.updateStatus);
-	const deleteAgent = useMutation(api.agents.deleteAgent);
 
 	const getUtilization = (agentId: string) =>
 		utilization?.find((u) => u.agentId === agentId);
@@ -70,16 +67,6 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 				<div className="text-[11px] font-bold tracking-widest text-muted-foreground flex items-center gap-2">
 					<span className="w-1.5 h-1.5 bg-[var(--accent-green)] rounded-full" />{" "}
 					AGENTS
-					{onAddAgent && (
-						<button
-							type="button"
-							onClick={onAddAgent}
-							className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold text-white bg-[var(--accent-green)] rounded hover:opacity-90 transition-opacity"
-							aria-label="Add agent"
-						>
-							<span className="text-xs leading-none">+</span> Add Agent
-						</button>
-					)}
 				</div>
 				<div className="flex items-center gap-2">
 					<button
@@ -117,20 +104,6 @@ const AgentsSidebar: React.FC<AgentsSidebarProps> = ({
 						className="relative flex items-center gap-3 px-6 py-3 cursor-pointer hover:bg-muted transition-colors group"
 						onClick={() => onSelectAgent?.(agent._id)}
 					>
-						<button
-							type="button"
-							onClick={(e) => {
-								e.stopPropagation();
-								if (confirm(`Delete ${agent.name}?`)) {
-										deleteAgent({ id: agent._id, tenantId: DEFAULT_TENANT_ID });
-								}
-							}}
-							className="absolute left-1 top-1 opacity-0 group-hover:opacity-100 transition-opacity inline-flex h-[22px] w-[22px] items-center justify-center rounded hover:bg-[var(--accent-red)]/10 text-[var(--accent-red)] z-10"
-							aria-label={`Delete ${agent.name}`}
-							title={`Delete ${agent.name}`}
-						>
-							<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5m3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4zM2.5 3h11V2h-11z"/></svg>
-						</button>
 						<AgentAvatar name={agent.name} avatar={agent.avatar} size={50} />
 						<div className="flex-1 min-w-0">
 							<div className="flex items-center gap-1.5 mb-0.5">

@@ -1,12 +1,11 @@
 import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import { BUSINESS_UNITS, STATUS_LABELS } from "../lib/constants";
 import { getEffectiveStatuses, type EffectiveStatus } from "../lib/status";
 import AgentCard from "../components/AgentCard";
-import AddAgentModal from "../components/AddAgentModal";
 import StatusDot from "../components/shared/StatusDot";
 
 type StatusFilter = EffectiveStatus | null;
@@ -15,14 +14,12 @@ export default function AgentsPage() {
 	const agents = useQuery(api.queries.listAgents, { tenantId: DEFAULT_TENANT_ID });
 	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
 	const utilization = useQuery(api.queries.getAgentUtilization, { tenantId: DEFAULT_TENANT_ID });
-	const deleteAgent = useMutation(api.agents.deleteAgent);
 	const navigate = useNavigate();
 
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>(null);
 	const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 	const [businessUnitFilter, setBusinessUnitFilter] = useState<string | null>(null);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [showAddAgentModal, setShowAddAgentModal] = useState(false);
 
 	const allAgentsRaw = (agents || []).filter((a) => a.name !== "OpenClaw");
 	const effectiveStatuses = useMemo(
@@ -105,13 +102,6 @@ export default function AgentsPage() {
 		<div>
 			<div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
 				<h1>Agents</h1>
-				<button
-					type="button"
-					onClick={() => setShowAddAgentModal(true)}
-					className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-[var(--accent-green)] rounded-lg hover:opacity-90 transition-opacity"
-				>
-					<span className="text-base leading-none">+</span> Add Agent
-				</button>
 			</div>
 
 			{/* Search box */}
@@ -213,7 +203,6 @@ export default function AgentsPage() {
 						agent={agent}
 						effectiveStatus={agent.effectiveStatus}
 						utilization={getUtilization(agent._id)}
-						onDelete={(agentId) => deleteAgent({ id: agentId, tenantId: DEFAULT_TENANT_ID })}
 						onSelectAgent={(agentId) => navigate(`/agents/${agentId}`)}
 					/>
 				))}
@@ -225,12 +214,6 @@ export default function AgentsPage() {
 				</div>
 			)}
 
-			{showAddAgentModal && (
-				<AddAgentModal
-					onClose={() => setShowAddAgentModal(false)}
-					onCreated={() => setShowAddAgentModal(false)}
-				/>
-			)}
 		</div>
 	);
 }

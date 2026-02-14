@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -9,7 +8,6 @@ import TimeAgo from "../components/shared/TimeAgo";
 import TierBadge from "../components/shared/TierBadge";
 import ModelBadge from "../components/shared/ModelBadge";
 import BusinessUnitBadge from "../components/shared/BusinessUnitBadge";
-import SystemPromptEditor from "../components/agents/SystemPromptEditor";
 import { PHASE_COLORS, STATUS_LABELS } from "../lib/constants";
 import { IconArrowLeft } from "@tabler/icons-react";
 import AgentAvatar from "../components/AgentAvatar";
@@ -21,7 +19,6 @@ export default function AgentDetailPage() {
 	const tasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
 	const utilization = useQuery(api.queries.getAgentUtilization, { tenantId: DEFAULT_TENANT_ID });
 
-	const updateAgent = useMutation(api.agents.updateAgent);
 	const toggleAgent = useMutation(api.agents.toggleAgent);
 
 	const agent = agents?.find((a) => a._id === id);
@@ -32,38 +29,6 @@ export default function AgentDetailPage() {
 
 	// Cost data from utilization query
 	const agentCostData = utilization?.find((u) => u.agentId === id);
-
-	// System prompt editor state
-	const [promptValue, setPromptValue] = useState("");
-	const [originalPrompt, setOriginalPrompt] = useState("");
-	const [isSaving, setIsSaving] = useState(false);
-
-	useEffect(() => {
-		if (agent?.systemPrompt !== undefined) {
-			const prompt = agent.systemPrompt || "";
-			setPromptValue(prompt);
-			setOriginalPrompt(prompt);
-		}
-	}, [agent?.systemPrompt]);
-
-	const handleSavePrompt = async () => {
-		if (!agent || !id) return;
-		setIsSaving(true);
-		try {
-			await updateAgent({
-				id: id as Id<"agents">,
-				tenantId: DEFAULT_TENANT_ID,
-				systemPrompt: promptValue,
-			});
-			setOriginalPrompt(promptValue);
-		} finally {
-			setIsSaving(false);
-		}
-	};
-
-	const handleResetPrompt = () => {
-		setPromptValue(originalPrompt);
-	};
 
 	const handleToggleEnabled = async () => {
 		if (!agent || !id) return;
@@ -260,20 +225,31 @@ export default function AgentDetailPage() {
 					)}
 				</div>
 
-				{/* Right: Tasks + Prompt */}
+				{/* Right: Tasks + Agent Info */}
 				<div>
-					{/* System prompt editor */}
+					{/* Agent Info (read-only) */}
 					<div className="metric-card" style={{ marginBottom: 16 }}>
-						<div className="metric-label">System Prompt</div>
-						<div style={{ marginTop: 8 }}>
-							<SystemPromptEditor
-								value={promptValue}
-								onChange={setPromptValue}
-								onSave={handleSavePrompt}
-								onReset={handleResetPrompt}
-								isSaving={isSaving}
-								promptHistory={agent.promptHistory}
-							/>
+						<div className="metric-label">Agent Info</div>
+						<div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+							{agent.workspaceId && (
+								<div>
+									<div style={{ fontSize: 11, color: "var(--mc-text-muted)" }}>Workspace</div>
+									<div style={{ fontSize: 13, color: "var(--mc-text-primary)", fontFamily: "var(--font-mono)" }}>
+										{agent.workspaceId}
+									</div>
+								</div>
+							)}
+							{agent.orgId && (
+								<div>
+									<div style={{ fontSize: 11, color: "var(--mc-text-muted)" }}>Org ID</div>
+									<div style={{ fontSize: 13, color: "var(--mc-text-primary)", fontFamily: "var(--font-mono)" }}>
+										{agent.orgId}
+									</div>
+								</div>
+							)}
+							<div style={{ fontSize: 12, color: "var(--mc-text-muted)", marginTop: 4, fontStyle: "italic" }}>
+								Agent configuration is managed in Agent Studio
+							</div>
 						</div>
 					</div>
 

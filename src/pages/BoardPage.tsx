@@ -8,7 +8,6 @@ import TrayContainer from "../components/Trays/TrayContainer";
 import TaskDetailPanel from "../components/TaskDetailPanel";
 import AddTaskModal from "../components/AddTaskModal";
 import AddProjectModal from "../components/AddProjectModal";
-import AddAgentModal from "../components/AddAgentModal";
 import AgentDetailTray from "../components/AgentDetailTray";
 import TriageModal from "../components/TriageModal";
 
@@ -42,7 +41,6 @@ export default function BoardPage() {
 	const [showAddTaskModal, setShowAddTaskModal] = useState(false);
 	const [addTaskPreselectedAgentId, setAddTaskPreselectedAgentId] = useState<string | undefined>(undefined);
 	const [selectedAgentId, setSelectedAgentId] = useState<Id<"agents"> | null>(null);
-	const [showAddAgentModal, setShowAddAgentModal] = useState(false);
 	const [selectedProjectId, setSelectedProjectId] = useState<Id<"projects"> | null>(null);
 	const [showAddProjectModal, setShowAddProjectModal] = useState(false);
 	const [addTaskPreselectedProjectId, setAddTaskPreselectedProjectId] = useState<Id<"projects"> | undefined>(undefined);
@@ -114,7 +112,6 @@ export default function BoardPage() {
 					setAddTaskPreselectedAgentId(preselectedAgentId);
 					setShowAddTaskModal(true);
 				}}
-				onAddAgent={() => setShowAddAgentModal(true)}
 				onSelectAgent={(agentId) => setSelectedAgentId(agentId as Id<"agents">)}
 			/>
 			<ControlTowerQueue
@@ -180,12 +177,6 @@ export default function BoardPage() {
 				agentId={selectedAgentId}
 				onClose={() => setSelectedAgentId(null)}
 			/>
-			{showAddAgentModal && (
-				<AddAgentModal
-					onClose={() => setShowAddAgentModal(false)}
-					onCreated={() => setShowAddAgentModal(false)}
-				/>
-			)}
 			{showTriageModal && (
 				<TriageModal
 					onClose={() => setShowTriageModal(false)}

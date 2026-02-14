@@ -33,40 +33,6 @@ export const updateStatus = mutation({
   },
 });
 
-export const createAgent = mutation({
-  args: {
-    name: v.string(),
-    role: v.string(),
-    level: v.union(v.literal("LEAD"), v.literal("INT"), v.literal("SPC")),
-    avatar: v.string(),
-    status: v.union(v.literal("idle"), v.literal("active"), v.literal("blocked"), v.literal("off")),
-    systemPrompt: v.optional(v.string()),
-    character: v.optional(v.string()),
-    lore: v.optional(v.string()),
-    reportsTo: v.optional(v.id("agents")),
-    canInteractWith: v.optional(v.union(
-      v.literal("any"),
-      v.array(v.id("agents")),
-    )),
-    tenantId: v.string(),
-  },
-  handler: async (ctx, args) => {
-    return await ctx.db.insert("agents", {
-      name: args.name,
-      role: args.role,
-      level: args.level,
-      avatar: args.avatar,
-      status: args.status,
-      systemPrompt: args.systemPrompt,
-      character: args.character,
-      lore: args.lore,
-      reportsTo: args.reportsTo,
-      canInteractWith: args.canInteractWith,
-      tenantId: args.tenantId,
-    });
-  },
-});
-
 export const updateAgent = mutation({
   args: {
     id: v.id("agents"),
@@ -76,9 +42,6 @@ export const updateAgent = mutation({
     level: v.optional(v.union(v.literal("LEAD"), v.literal("INT"), v.literal("SPC"))),
     avatar: v.optional(v.string()),
     status: v.optional(v.union(v.literal("idle"), v.literal("active"), v.literal("blocked"), v.literal("off"))),
-    systemPrompt: v.optional(v.string()),
-    character: v.optional(v.string()),
-    lore: v.optional(v.string()),
     reportsTo: v.optional(v.id("agents")),
     canInteractWith: v.optional(v.union(
       v.literal("any"),
@@ -128,43 +91,6 @@ export const updateStatusByName = mutation({
     }
 
     await ctx.db.patch(agent._id, { status: args.status });
-  },
-});
-
-export const deleteAgent = mutation({
-  args: { id: v.id("agents"), tenantId: v.string() },
-  handler: async (ctx, args) => {
-    const agent = await ctx.db.get(args.id);
-    assertTenant(agent, args.tenantId, "Agent");
-    await ctx.db.delete(args.id);
-  },
-});
-
-// --- Phase 3: Agent Directory enhancements ---
-
-export const updateSystemPrompt = mutation({
-  args: {
-    id: v.id("agents"),
-    tenantId: v.string(),
-    prompt: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const agent = await ctx.db.get(args.id);
-    assertTenant(agent, args.tenantId, "Agent");
-
-    // Push old systemPrompt to promptHistory (create array if missing)
-    const history = agent!.promptHistory ?? [];
-    if (agent!.systemPrompt) {
-      history.push({
-        prompt: agent!.systemPrompt,
-        savedAt: Date.now(),
-      });
-    }
-
-    await ctx.db.patch(args.id, {
-      systemPrompt: args.prompt,
-      promptHistory: history,
-    });
   },
 });
 
@@ -313,10 +239,34 @@ export const syncAgents = mutation({
       }
     }
 
+    // Third pass: delete agents not in the incoming payload
+    // Safety guard: skip deletions if >50% of existing agents would be removed
+    const incomingNames = new Set(args.agents.map((a) => a.name));
+    const allExisting = await ctx.db
+      .query("agents")
+      .withIndex("by_tenant_name", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
+
+    const toDelete = allExisting.filter((a) => !incomingNames.has(a.name));
+    let deleted = 0;
+
+    if (allExisting.length > 0 && toDelete.length > allExisting.length * 0.5) {
+      // Skip deletions — likely a partial/buggy sync
+      console.warn(
+        `[syncAgents] Skipping deletion: would remove ${toDelete.length}/${allExisting.length} agents (>50%)`
+      );
+    } else {
+      for (const agent of toDelete) {
+        await ctx.db.delete(agent._id);
+        deleted++;
+      }
+    }
+
     return {
       created,
       updated,
       resolved,
+      deleted,
       total: args.agents.length,
     };
   },
