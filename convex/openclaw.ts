@@ -1,10 +1,23 @@
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { api } from "./_generated/api";
 
 const SYSTEM_AGENT_NAME = "OpenClaw";
 const DEFAULT_TENANT_ID = "default";
 // Tools that reliably indicate coding work (write excluded — it's used for markdown/docs too)
 const CODING_TOOLS = ["edit", "exec", "bash", "run", "process"];
+
+/** Redact secrets/tokens from text before storing in the database. */
+function redactSecrets(text: string | null | undefined): string | null | undefined {
+	if (!text) return text;
+	return text
+		.replace(/sk-ant-[a-zA-Z0-9\-]{20,}/g, "sk-ant-****")
+		.replace(/sk-[a-zA-Z0-9]{20,}/g, "sk-****")
+		.replace(/Bearer [a-zA-Z0-9._\-]{20,}/g, "Bearer ****")
+		.replace(/AKIA[A-Z0-9]{16}/g, "AKIA****")
+		.replace(/eyJ[a-zA-Z0-9._\-]{50,}/g, "eyJ****")
+		.replace(/(key|token|secret|password|apikey|api_key)[=:]\s*["']?[a-zA-Z0-9+/]{32,}/gi, "$1=****");
+}
 
 function formatDuration(ms: number): string {
 	const seconds = Math.floor(ms / 1000);
@@ -125,11 +138,12 @@ export const receiveAgentEvent = mutation({
 				await ctx.db.patch(namedAgent._id, { status: "active" });
 			}
 			if (!task) {
-				const title = args.prompt
-					? summarizePrompt(args.prompt)
+				const safePrompt = redactSecrets(args.prompt) as string | undefined;
+				const title = safePrompt
+					? summarizePrompt(safePrompt)
 					: `Agent task ${args.runId.slice(0, 8)}`;
 
-				const description = args.prompt || `OpenClaw agent task\nRun ID: ${args.runId}`;
+				const description = safePrompt || `OpenClaw agent task\nRun ID: ${args.runId}`;
 
 				// Map source to task source field
 				const sourceMap: Record<string, string> = {
@@ -158,7 +172,7 @@ export const receiveAgentEvent = mutation({
 					await ctx.db.insert("messages", {
 						taskId,
 						fromAgentId: agent._id,
-						content: `\u{1F680} **Started**\n\n${sourcePrefix}${args.prompt || "N/A"}`,
+						content: `\u{1F680} **Started**\n\n${sourcePrefix}${safePrompt || "N/A"}`,
 						attachments: [],
 						tenantId,
 					});
@@ -183,10 +197,11 @@ export const receiveAgentEvent = mutation({
 					});
 				}
 			} else if (args.prompt && task.title.startsWith("Agent task")) {
-				const title = summarizePrompt(args.prompt);
+				const safePrompt = redactSecrets(args.prompt) as string;
+				const title = summarizePrompt(safePrompt);
 				await ctx.db.patch(task._id, {
 					title,
-					description: args.prompt,
+					description: safePrompt,
 					startedAt: now,
 				});
 			} else {
@@ -197,7 +212,7 @@ export const receiveAgentEvent = mutation({
 			await ctx.db.insert("messages", {
 				taskId: task._id,
 				fromAgentId: agent._id,
-				content: args.message || "Progress update",
+				content: (redactSecrets(args.message) as string) || "Progress update",
 				attachments: [],
 				tenantId,
 			});
@@ -210,7 +225,8 @@ export const receiveAgentEvent = mutation({
 				}
 			}
 		} else if (args.action === "end" && task) {
-			const needsFeedback = args.response ? args.response.includes("?") : false;
+			const safeResponse = redactSecrets(args.response) as string | undefined;
+			const needsFeedback = safeResponse ? safeResponse.includes("?") : false;
 
 			let isCodingTask = task.usedCodingTools ?? false;
 			if (!isCodingTask) {
@@ -304,8 +320,8 @@ export const receiveAgentEvent = mutation({
 				if (args.costData) {
 					completionMsg += ` | Cost: $${args.costData.totalCost.toFixed(4)}`;
 				}
-				if (args.response) {
-					completionMsg += `\n\n${args.response}`;
+				if (safeResponse) {
+					completionMsg += `\n\n${safeResponse}`;
 				}
 
 				await ctx.db.insert("messages", {
@@ -339,7 +355,16 @@ export const receiveAgentEvent = mutation({
 			if (namedAgent) {
 				await ctx.db.patch(namedAgent._id, { status: "idle", currentTaskId: undefined });
 			}
+			// Trigger webhook for task completion
+			if (endStatus === "done") {
+				await ctx.scheduler.runAfter(0, api.webhooks.deliverWebhookEvent, {
+					tenantId,
+					event: "task_completed",
+					payload: { taskId: task._id, agentId: args.agentId, title: task.title, duration },
+				});
+			}
 		} else if (args.action === "error" && task) {
+			const safeError = (redactSecrets(args.error) as string) || "Unknown error";
 			await ctx.db.patch(task._id, { status: "review", needsInput: true });
 
 			const startTime = task.startedAt || task._creationTime;
@@ -350,7 +375,7 @@ export const receiveAgentEvent = mutation({
 				await ctx.db.insert("messages", {
 					taskId: task._id,
 					fromAgentId: agent._id,
-					content: `\u274C **Error** after **${durationStr}**\n\n${args.error || "Unknown error"}`,
+					content: `\u274C **Error** after **${durationStr}**\n\n${safeError}`,
 					attachments: [],
 					tenantId,
 				});
@@ -377,10 +402,16 @@ export const receiveAgentEvent = mutation({
 			if (namedAgent) {
 				await ctx.db.patch(namedAgent._id, { status: "idle" });
 			}
+			// Trigger webhook for task failure
+			await ctx.scheduler.runAfter(0, api.webhooks.deliverWebhookEvent, {
+				tenantId,
+				event: "task_failed",
+				payload: { taskId: task._id, agentId: args.agentId, error: safeError, title: task.title },
+			});
 		} else if (args.action === "document" && args.document && agent) {
 			const docId = await ctx.db.insert("documents", {
 				title: args.document.title,
-				content: args.document.content,
+				content: (redactSecrets(args.document.content) as string) || args.document.content,
 				type: args.document.type,
 				path: args.document.path,
 				taskId: task?._id,

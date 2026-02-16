@@ -80,7 +80,7 @@ export const update = mutation({
 				.query("agents")
 				.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
 				.collect();
-			const agent = agents.find((a) => a.name === "Aiden") || agents[0];
+			const agent = agents.find((a) => a.name === "Mike") || agents[0];
 			if (agent) {
 				await ctx.db.insert("activities", {
 					type: "project_status_change",

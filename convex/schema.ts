@@ -36,6 +36,7 @@ export default defineSchema({
 		phase: v.optional(v.string()),
 		isEnabled: v.optional(v.boolean()),
 		maxConcurrentTasks: v.optional(v.number()),
+		agentRole: v.optional(v.string()),  // "manager" | "ic"
 		escalationPath: v.optional(v.array(v.string())),
 		lastActiveAt: v.optional(v.number()),
 		errorMessage: v.optional(v.string()),
@@ -322,4 +323,90 @@ export default defineSchema({
 		.index("by_date", ["date"])
 		.index("by_tenant", ["tenantId"])
 		.index("by_tenant_date", ["tenantId", "date"]),
+
+	// Marketing ROI tracking
+	marketingMetrics: defineTable({
+		location: v.union(v.literal("phoenix"), v.literal("denver"), v.literal("chicago")),
+		month: v.string(), // YYYY-MM format
+		channel: v.string(), // "LSA" | "Yelp" | "PPC" | "Organic" | "Direct" | etc
+		spend: v.number(),
+		leads: v.number(),
+		conversions: v.number(),
+		revenue: v.number(),
+		cpl: v.number(), // cost per lead (calculated)
+		conversionRate: v.number(), // conversion % (calculated)
+		roi: v.number(), // return on investment (calculated)
+		notes: v.optional(v.string()),
+		tenantId: v.optional(v.string()),
+		updatedAt: v.number(),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_location", ["tenantId", "location"])
+		.index("by_tenant_month", ["tenantId", "month"])
+		.index("by_tenant_location_month", ["tenantId", "location", "month"])
+		.index("by_tenant_location_channel", ["tenantId", "location", "channel"]),
+
+	// Risk signal detection (governance)
+	riskSignals: defineTable({
+		signalType: v.union(
+			v.literal("repeated_failures"),
+			v.literal("stale_task"),
+			v.literal("autonomy_spike"),
+			v.literal("budget_burn_spike"),
+		),
+		severity: v.union(
+			v.literal("low"),
+			v.literal("medium"),
+			v.literal("high"),
+			v.literal("critical"),
+		),
+		agentId: v.optional(v.string()),
+		taskId: v.optional(v.id("tasks")),
+		message: v.string(),
+		metadata: v.optional(v.any()),
+		resolvedAt: v.optional(v.number()),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_type", ["tenantId", "signalType"]),
+
+	// Outbound webhook subscriptions
+	webhooks: defineTable({
+		url: v.string(),
+		secret: v.string(),
+		events: v.array(v.string()),
+		enabled: v.boolean(),
+		name: v.optional(v.string()),
+		lastDeliveredAt: v.optional(v.number()),
+		failCount: v.optional(v.number()),
+		tenantId: v.optional(v.string()),
+	})
+		.index("by_tenant", ["tenantId"]),
+
+	leadAttribution: defineTable({
+		leadId: v.string(), // SM order ID or custom identifier
+		location: v.union(v.literal("phoenix"), v.literal("denver"), v.literal("chicago")),
+		channel: v.string(),
+		leadDate: v.string(), // YYYY-MM-DD
+		customerName: v.string(),
+		status: v.union(
+			v.literal("new"),
+			v.literal("contacted"),
+			v.literal("quoted"),
+			v.literal("booked"),
+			v.literal("completed"),
+			v.literal("lost"),
+		),
+		revenue: v.number(),
+		smOrderId: v.optional(v.string()),
+		notes: v.optional(v.string()),
+		tenantId: v.optional(v.string()),
+		createdAt: v.number(),
+		updatedAt: v.number(),
+	})
+		.index("by_tenant", ["tenantId"])
+		.index("by_tenant_location", ["tenantId", "location"])
+		.index("by_tenant_channel", ["tenantId", "channel"])
+		.index("by_tenant_leadId", ["tenantId", "leadId"])
+		.index("by_tenant_status", ["tenantId", "status"]),
 });

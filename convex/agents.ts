@@ -170,6 +170,12 @@ export const syncAgents = mutation({
       reportsTo: v.optional(v.string()),  // Agent name, not ID
       model: v.optional(v.string()),
       businessUnit: v.optional(v.string()),
+      agentRole: v.optional(v.string()),  // "manager" | "ic"
+      tier: v.optional(v.string()),
+      category: v.optional(v.string()),
+      level: v.optional(v.string()),
+      phase: v.optional(v.string()),
+      escalationPath: v.optional(v.array(v.string())),  // Agent names
     })),
   },
   handler: async (ctx, args) => {
@@ -194,6 +200,12 @@ export const syncAgents = mutation({
           workspaceId: agentData.workspaceId,
           model: agentData.model,
           businessUnit: agentData.businessUnit,
+          agentRole: agentData.agentRole,
+          tier: agentData.tier,
+          category: agentData.category,
+          level: (agentData.level as "LEAD" | "INT" | "SPC") || existing.level,
+          phase: agentData.phase,
+          escalationPath: agentData.escalationPath,
         });
         updated++;
       } else {
@@ -202,13 +214,18 @@ export const syncAgents = mutation({
           name: agentData.name,
           role: agentData.role,
           avatar: agentData.avatar || `/avatars/${agentData.name.toLowerCase()}.jpg`,
-          level: "INT" as const,  // Default level
+          level: (agentData.level as "LEAD" | "INT" | "SPC") || "INT",
           status: agentData.kind === "human" ? "off" as const : "idle" as const,
           orgId: agentData.orgId,
           workspaceId: agentData.workspaceId,
           tenantId: args.tenantId,
           model: agentData.model,
           businessUnit: agentData.businessUnit,
+          agentRole: agentData.agentRole,
+          tier: agentData.tier,
+          category: agentData.category,
+          phase: agentData.phase,
+          escalationPath: agentData.escalationPath,
         });
         created++;
       }

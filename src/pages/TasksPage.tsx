@@ -59,7 +59,6 @@ export default function TasksPage() {
 	// Compute stats
 	const stats = useMemo(() => {
 		const all = tasks || [];
-		const now = Date.now();
 		const todayStart = new Date();
 		todayStart.setHours(0, 0, 0, 0);
 		const todayMs = todayStart.getTime();
@@ -144,7 +143,7 @@ export default function TasksPage() {
 			width: "140px",
 			render: (row: (typeof taskList)[0]) => {
 				const names = row.assigneeIds
-					.map((id: string) => agentMap.get(id)?.name)
+					.map((id) => agentMap.get(id)?.name)
 					.filter(Boolean);
 				return names.length > 0 ? (
 					<span style={{ fontSize: 12 }}>{names.join(", ")}</span>

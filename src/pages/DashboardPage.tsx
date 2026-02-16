@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { useQuery } from "convex/react";
+import { useMemo, useCallback } from "react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import MetricCard from "../components/shared/MetricCard";
@@ -9,6 +9,7 @@ import BusinessSplitCard from "../components/dashboard/BusinessSplitCard";
 import RecentActivityMini from "../components/dashboard/RecentActivityMini";
 import ModelUsageTable from "../components/dashboard/ModelUsageTable";
 import CostChart from "../components/dashboard/CostChart";
+import RiskSignalCards from "../components/dashboard/RiskSignalCards";
 
 export default function DashboardPage() {
 	const overview = useQuery(api.dashboard.getSystemOverview, { tenantId: DEFAULT_TENANT_ID });
@@ -20,6 +21,16 @@ export default function DashboardPage() {
 	const allTasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID });
 	const modelUsage = useQuery(api.dashboard.getUsageByModel, { tenantId: DEFAULT_TENANT_ID });
 	const costOverTime = useQuery(api.dashboard.getCostOverTime, { tenantId: DEFAULT_TENANT_ID, hours: 24 });
+	const orchestration = useQuery(api.escalation.getOrchestrationMetrics, { tenantId: DEFAULT_TENANT_ID });
+	const activeSignals = useQuery(api.riskSignals.getActiveSignals, { tenantId: DEFAULT_TENANT_ID });
+	const resolveSignal = useMutation(api.riskSignals.resolveSignal);
+
+	const handleResolveSignal = useCallback(
+		(signalId: Parameters<typeof resolveSignal>[0]["signalId"]) => {
+			resolveSignal({ tenantId: DEFAULT_TENANT_ID, signalId });
+		},
+		[resolveSignal],
+	);
 
 	// Transform throughput data for the chart
 	const chartData = useMemo(() => {
@@ -120,7 +131,62 @@ export default function DashboardPage() {
 						}
 					/>
 				)}
+				<MetricCard
+					label="Risk Signals"
+					value={overview.riskSignals?.total ?? 0}
+					color={
+						(overview.riskSignals?.critical ?? 0) > 0 || (overview.riskSignals?.high ?? 0) > 0
+							? "#ef4444"
+							: (overview.riskSignals?.medium ?? 0) > 0
+								? "#f97316"
+								: "var(--mc-status-ok)"
+					}
+				/>
 			</div>
+
+			{/* Risk signals cards */}
+			{activeSignals && activeSignals.length > 0 && (
+				<div style={{ marginBottom: 24 }}>
+					<div className="metric-card">
+						<RiskSignalCards signals={activeSignals} onResolve={handleResolveSignal} />
+					</div>
+				</div>
+			)}
+
+			{/* Orchestration metrics row */}
+			{orchestration && (orchestration.qaGates > 0 || orchestration.retries > 0 || orchestration.escalations > 0 || orchestration.dispatches > 0) && (
+				<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16, marginBottom: 24 }}>
+					<MetricCard
+						label="QA Gates Today"
+						value={orchestration.qaGates}
+						sub={orchestration.passRate !== null ? `${orchestration.passRate}% pass rate` : undefined}
+					/>
+					<MetricCard
+						label="Retries"
+						value={orchestration.retries}
+						color={orchestration.retries > 0 ? "#f97316" : undefined}
+					/>
+					<MetricCard
+						label="Escalations"
+						value={orchestration.escalations}
+						sub={orchestration.escalatedTasks > 0 ? `${orchestration.escalatedTasks} tasks escalated` : undefined}
+						color={orchestration.escalations > 0 ? "#ef4444" : undefined}
+					/>
+					<MetricCard
+						label="Pass Rate"
+						value={orchestration.passRate !== null ? `${orchestration.passRate}%` : "N/A"}
+						color={
+							orchestration.passRate === null
+								? undefined
+								: orchestration.passRate >= 80
+									? "var(--mc-status-ok)"
+									: orchestration.passRate >= 50
+										? "var(--mc-status-warn)"
+										: "var(--mc-status-error)"
+						}
+					/>
+				</div>
+			)}
 
 			{/* Row 1: Task Throughput (2 cols) + Agent Load (1 col) */}
 			<div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>

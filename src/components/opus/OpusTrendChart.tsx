@@ -42,7 +42,7 @@ export default function OpusTrendChart({ data }: OpusTrendChartProps) {
 						fontSize: 12,
 					}}
 					labelStyle={{ color: "#e4e4ef" }}
-					formatter={(value: number) => [`$${value.toFixed(2)}`, "Cost"]}
+					formatter={(value: number | undefined) => [`$${(value ?? 0).toFixed(2)}`, "Cost"]}
 				/>
 				<Line
 					type="monotone"

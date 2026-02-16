@@ -8,7 +8,7 @@ const ROUTE_LABELS: Record<string, string> = {
 	"/projects": "Projects",
 	"/tasks": "Tasks",
 	"/agents": "Agents",
-	"/agents/escalation": "Escalation Map",
+	"/agents/escalation": "Agent Network",
 	"/opus": "Opus Budget",
 	"/phase": "Phase Manager",
 	"/logs": "Activity Log",

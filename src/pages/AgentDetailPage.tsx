@@ -30,6 +30,14 @@ export default function AgentDetailPage() {
 	// Cost data from utilization query
 	const agentCostData = utilization?.find((u) => u.agentId === id);
 
+	// Compute org relationships
+	const manager = agent?.reportsTo && agents
+		? agents.find((a) => a._id === agent.reportsTo)
+		: null;
+	const directReports = agents
+		? agents.filter((a) => a.reportsTo === id)
+		: [];
+
 	const handleToggleEnabled = async () => {
 		if (!agent || !id) return;
 		await toggleAgent({
@@ -54,6 +62,7 @@ export default function AgentDetailPage() {
 
 	const isEnabled = agent.isEnabled !== false && agent.status !== "off";
 	const phaseColor = agent.phase ? PHASE_COLORS[agent.phase] || "var(--mc-text-secondary)" : undefined;
+	const isManager = (agent as Record<string, unknown>).agentRole === "manager";
 
 	return (
 		<div>
@@ -91,6 +100,24 @@ export default function AgentDetailPage() {
 							<>
 								<span style={{ color: "var(--mc-text-muted)" }}>|</span>
 								<BusinessUnitBadge unit={agent.businessUnit} />
+							</>
+						)}
+						{/* Role badge */}
+						{!!(agent as Record<string, unknown>).agentRole && (
+							<>
+								<span style={{ color: "var(--mc-text-muted)" }}>|</span>
+								<span
+									style={{
+										fontSize: 11,
+										padding: "1px 8px",
+										borderRadius: 4,
+										background: isManager ? "rgba(245, 158, 11, 0.15)" : "rgba(107, 114, 128, 0.15)",
+										color: isManager ? "#f59e0b" : "var(--mc-text-muted)",
+										fontWeight: 500,
+									}}
+								>
+									{isManager ? "Manager" : "IC"}
+								</span>
 							</>
 						)}
 					</div>
@@ -173,6 +200,14 @@ export default function AgentDetailPage() {
 									{agent.phase || "Not assigned"}
 								</div>
 							</div>
+							{agent.category && (
+								<div>
+									<div style={{ fontSize: 11, color: "var(--mc-text-muted)" }}>Category</div>
+									<div style={{ fontSize: 13, color: "var(--mc-text-primary)" }}>
+										{agent.category}
+									</div>
+								</div>
+							)}
 							<div>
 								<div style={{ fontSize: 11, color: "var(--mc-text-muted)" }}>Business Unit</div>
 								<div style={{ fontSize: 13, color: "var(--mc-text-primary)" }}>
@@ -190,36 +225,118 @@ export default function AgentDetailPage() {
 						</div>
 					</div>
 
+					{/* Organization section */}
+					<div className="metric-card" style={{ marginTop: 16 }}>
+						<div className="metric-label">Organization</div>
+						<div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+							{/* Manager */}
+							<div>
+								<div style={{ fontSize: 11, color: "var(--mc-text-muted)" }}>Reports to</div>
+								<div style={{ fontSize: 13, color: "var(--mc-text-primary)" }}>
+									{manager ? (
+										<Link
+											to={`/agents/${manager._id}`}
+											style={{ color: "var(--mc-accent)", textDecoration: "none" }}
+										>
+											{manager.name} ({manager.role})
+										</Link>
+									) : (
+										<span style={{ color: "var(--mc-text-muted)" }}>None (root)</span>
+									)}
+								</div>
+							</div>
+
+							{/* Direct reports */}
+							{directReports.length > 0 && (
+								<div>
+									<div style={{ fontSize: 11, color: "var(--mc-text-muted)" }}>
+										Direct Reports ({directReports.length})
+									</div>
+									<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+										{directReports.map((dr) => (
+											<Link
+												key={dr._id}
+												to={`/agents/${dr._id}`}
+												style={{
+													fontSize: 12,
+													padding: "2px 8px",
+													borderRadius: 4,
+													background: "var(--mc-bg-card)",
+													border: "1px solid var(--mc-border)",
+													color: "var(--mc-text-primary)",
+													textDecoration: "none",
+												}}
+											>
+												{dr.name}
+											</Link>
+										))}
+									</div>
+								</div>
+							)}
+						</div>
+					</div>
+
 					{/* Escalation Path */}
 					{agent.escalationPath && agent.escalationPath.length > 0 && (
 						<div className="metric-card" style={{ marginTop: 16 }}>
 							<div className="metric-label">Escalation Path</div>
-							<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-								{agent.escalationPath.map((step, i) => (
-									<span
-										key={i}
-										style={{
-											display: "inline-flex",
-											alignItems: "center",
-											gap: 4,
-											fontSize: 12,
-											color: "var(--mc-text-secondary)",
-										}}
-									>
-										{i > 0 && <span style={{ color: "var(--mc-text-muted)" }}>&rarr;</span>}
+							<div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, alignItems: "center" }}>
+								<span
+									className="badge"
+									style={{
+										padding: "3px 8px",
+										backgroundColor: "var(--mc-accent, #3b82f6)",
+										border: "1px solid transparent",
+										color: "#fff",
+										fontSize: 12,
+									}}
+								>
+									{agent.name}
+								</span>
+								{agent.escalationPath.map((step, i) => {
+									const stepAgent = agents?.find((a) => a.name === step);
+									return (
 										<span
-											className="badge"
+											key={i}
 											style={{
-												padding: "3px 8px",
-												backgroundColor: "var(--mc-bg-card)",
-												border: "1px solid var(--mc-border)",
-												color: "var(--mc-text-primary)",
+												display: "inline-flex",
+												alignItems: "center",
+												gap: 4,
+												fontSize: 12,
+												color: "var(--mc-text-secondary)",
 											}}
 										>
-											{step}
+											<span style={{ color: "var(--mc-text-muted)" }}>&rarr;</span>
+											{stepAgent ? (
+												<Link
+													to={`/agents/${stepAgent._id}`}
+													className="badge"
+													style={{
+														padding: "3px 8px",
+														backgroundColor: "var(--mc-bg-card)",
+														border: "1px solid var(--mc-border)",
+														color: "var(--mc-text-primary)",
+														textDecoration: "none",
+													}}
+												>
+													{step}
+												</Link>
+											) : (
+												<span
+													className="badge"
+													style={{
+														padding: "3px 8px",
+														backgroundColor: "var(--mc-bg-card)",
+														border: "1px solid var(--mc-border)",
+														color: "var(--mc-text-primary)",
+													}}
+												>
+													{step}
+												</span>
+											)}
 										</span>
-									</span>
-								))}
+									);
+								})}
 							</div>
 						</div>
 					)}

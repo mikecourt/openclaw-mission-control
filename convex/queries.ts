@@ -406,7 +406,7 @@ export const getNextWork = query({
 	},
 });
 
-// --- Dispatch summary (for Aiden's dispatch loop) ---
+// --- Dispatch summary (for Marshall's dispatch loop) ---
 
 const BUSINESS_AGENTS = ["Maven", "Chase", "Morgan", "Harper", "Forge", "Charlie"];
 

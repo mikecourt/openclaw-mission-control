@@ -55,7 +55,7 @@ http.route({
 });
 
 // --- Agent-facing HTTP API ---
-// These endpoints let Aiden (and other agents) read from MC via curl
+// These endpoints let agents read from CT via curl
 
 http.route({
 	path: "/api/inbox",
@@ -187,7 +187,7 @@ http.route({
 	}),
 });
 
-// --- Dispatch summary (for Aiden's dispatch loop) ---
+// --- Dispatch summary (for Marshall's dispatch loop) ---
 
 http.route({
 	path: "/api/dispatch-summary",
@@ -546,6 +546,33 @@ http.route({
 	}),
 });
 
+// POST /api/orchestration/event — log orchestration events (QA gate, retry, escalate, handoff, dispatch)
+http.route({
+	path: "/api/orchestration/event",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			await ctx.runMutation(api.escalation.logOrchestrationEvent, {
+				tenantId: body.tenantId || "default",
+				taskId: body.taskId,
+				agentName: body.agentName,
+				eventType: body.eventType,
+				decision: body.decision,
+				fromAgent: body.fromAgent,
+				toAgent: body.toAgent,
+				reason: body.reason,
+				feedback: body.feedback,
+				metadata: body.metadata,
+			});
+			return ok({ ok: true });
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to log orchestration event");
+		}
+	}),
+});
+
 // POST /api/activity-log — external log ingestion
 http.route({
 	path: "/api/activity-log",
@@ -565,6 +592,153 @@ http.route({
 			agentId: body.agentId,
 		});
 		return ok({ ok: true });
+	}),
+});
+
+// --- Risk Signals ---
+
+http.route({
+	path: "/api/risk-signals",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		const url = new URL(request.url);
+		const tenantId = url.searchParams.get("tenantId") || "default";
+		const signals = await ctx.runQuery(api.riskSignals.getActiveSignals, { tenantId });
+		return ok(signals);
+	}),
+});
+
+http.route({
+	path: "/api/risk-signals/analyze",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			const result = await ctx.runMutation(api.riskSignals.analyzeRisks, { tenantId });
+			return ok(result);
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to analyze risks");
+		}
+	}),
+});
+
+http.route({
+	path: "/api/risk-signals/resolve",
+	method: "PUT",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			await ctx.runMutation(api.riskSignals.resolveSignal, {
+				tenantId,
+				signalId: body.signalId,
+			});
+			return ok({ ok: true });
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to resolve signal");
+		}
+	}),
+});
+
+// --- Webhooks ---
+
+http.route({
+	path: "/api/webhooks",
+	method: "GET",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		const url = new URL(request.url);
+		const tenantId = url.searchParams.get("tenantId") || "default";
+		const webhooks = await ctx.runQuery(api.webhooks.listWebhooks, { tenantId });
+		return ok(webhooks);
+	}),
+});
+
+http.route({
+	path: "/api/webhooks",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			const id = await ctx.runMutation(api.webhooks.createWebhook, {
+				url: body.url,
+				secret: body.secret,
+				events: body.events || [],
+				enabled: body.enabled ?? true,
+				name: body.name,
+				tenantId,
+			});
+			return ok({ ok: true, id });
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to create webhook");
+		}
+	}),
+});
+
+http.route({
+	path: "/api/webhooks/update",
+	method: "PUT",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			await ctx.runMutation(api.webhooks.updateWebhook, {
+				webhookId: body.webhookId,
+				tenantId,
+				url: body.url,
+				secret: body.secret,
+				events: body.events,
+				enabled: body.enabled,
+				name: body.name,
+			});
+			return ok({ ok: true });
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to update webhook");
+		}
+	}),
+});
+
+http.route({
+	path: "/api/webhooks/delete",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			await ctx.runMutation(api.webhooks.deleteWebhook, {
+				webhookId: body.webhookId,
+				tenantId,
+			});
+			return ok({ ok: true });
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to delete webhook");
+		}
+	}),
+});
+
+http.route({
+	path: "/api/webhooks/test",
+	method: "POST",
+	handler: httpAction(async (ctx, request) => {
+		if (!validateBearer(request)) return unauthorized();
+		try {
+			const body = await request.json();
+			const tenantId = body.tenantId || "default";
+			const result = await ctx.runAction(api.webhooks.testWebhook, {
+				webhookId: body.webhookId,
+				tenantId,
+			});
+			return ok(result);
+		} catch (e: any) {
+			return badRequest(e.message || "Failed to test webhook");
+		}
 	}),
 });
 

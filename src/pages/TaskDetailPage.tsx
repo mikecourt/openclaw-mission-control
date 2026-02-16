@@ -1,11 +1,10 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import { Id } from "../../convex/_generated/dataModel";
 import PriorityBadge from "../components/shared/PriorityBadge";
 import BusinessUnitBadge from "../components/shared/BusinessUnitBadge";
-import ModelBadge from "../components/shared/ModelBadge";
 import TimeAgo from "../components/shared/TimeAgo";
 import MetricCard from "../components/shared/MetricCard";
 import EscalationTimeline from "../components/tasks/EscalationTimeline";

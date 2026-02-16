@@ -48,15 +48,23 @@ export const TASK_STATUS_COLORS: Record<string, string> = {
 };
 
 export const BUSINESS_UNITS = ["automagic", "chemdry", "cross"] as const;
-export const AGENT_CATEGORIES = ["engineering", "operations", "marketing", "finance", "support", "leadership"] as const;
+export const AGENT_CATEGORIES = [
+  "engineering", "operations", "marketing", "finance", "research",
+  "sales", "content", "customer", "hr", "family", "strategy",
+] as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
   engineering: "#3b82f6",
   operations: "#22c55e",
   marketing: "#f59e0b",
   finance: "#8b5cf6",
-  support: "#ec4899",
-  leadership: "#ef4444",
+  research: "#06b6d4",
+  sales: "#f97316",
+  content: "#14b8a6",
+  customer: "#ec4899",
+  hr: "#a855f7",
+  family: "#84cc16",
+  strategy: "#ef4444",
 };
 
 export const BUSINESS_UNIT_COLORS: Record<string, string> = {

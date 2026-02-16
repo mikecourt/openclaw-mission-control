@@ -15,6 +15,7 @@ const LEVEL_COLORS: Record<string, string> = {
 export default function LogsPage() {
 	const [levelFilter, setLevelFilter] = useState<string | undefined>(undefined);
 	const [sourceFilter, setSourceFilter] = useState<string | undefined>(undefined);
+	const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
 	const [searchText, setSearchText] = useState("");
 	const [autoScroll, setAutoScroll] = useState(true);
 	const logContainerRef = useRef<HTMLDivElement>(null);
@@ -39,9 +40,22 @@ export default function LogsPage() {
 		return Array.from(sources).sort();
 	}, [logs]);
 
-	// Apply text search filter in-memory
+	// Collect unique actions for the filter dropdown
+	const uniqueActions = useMemo(() => {
+		if (!logs || logs.length === 0) return [];
+		const actions = new Set<string>();
+		for (const log of logs) {
+			if (log.action) actions.add(log.action);
+		}
+		return Array.from(actions).sort();
+	}, [logs]);
+
+	// Apply action + text search filters in-memory
 	const filteredLogs = useMemo(() => {
-		const items = logs || [];
+		let items = logs || [];
+		if (actionFilter) {
+			items = items.filter((log) => log.action === actionFilter);
+		}
 		if (!searchText.trim()) return items;
 		const query = searchText.toLowerCase();
 		return items.filter(
@@ -50,7 +64,7 @@ export default function LogsPage() {
 				log.source.toLowerCase().includes(query) ||
 				(log.agentId && log.agentId.toLowerCase().includes(query)),
 		);
-	}, [logs, searchText]);
+	}, [logs, searchText, actionFilter]);
 
 	const filteredActivities = useMemo(() => {
 		const items = activities || [];
@@ -145,6 +159,28 @@ export default function LogsPage() {
 					{uniqueSources.map((src) => (
 						<option key={src} value={src}>
 							{src}
+						</option>
+					))}
+				</select>
+
+				{/* Action filter dropdown */}
+				<select
+					value={actionFilter ?? ""}
+					onChange={(e) => setActionFilter(e.target.value || undefined)}
+					style={{
+						padding: "4px 8px",
+						fontSize: 12,
+						background: "var(--mc-bg-card, #1e1e2e)",
+						color: "var(--mc-text-primary, #fff)",
+						border: "1px solid var(--mc-border, #333)",
+						borderRadius: 4,
+						cursor: "pointer",
+					}}
+				>
+					<option value="">All actions</option>
+					{uniqueActions.map((action) => (
+						<option key={action} value={action}>
+							{action}
 						</option>
 					))}
 				</select>

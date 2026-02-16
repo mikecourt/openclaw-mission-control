@@ -13,25 +13,39 @@ type Agent = {
 	category?: string;
 	isEnabled?: boolean;
 	escalationPath?: string[];
+	reportsTo?: string;  // Convex agent _id
+	agentRole?: string;  // "manager" | "ic"
 };
+
+export type ViewMode = "org" | "escalation" | "combined";
 
 const TIER_Y: Record<string, number> = {
 	T1: 0,
 	T2: 250,
+	"T2-Free": 250,
 	T3: 500,
 };
 const DEFAULT_Y = 750;
 const X_SPACING = 220;
-const Y_SPACING = 250;
 
-export default function useEscalationGraph(agents: Agent[]) {
+export default function useEscalationGraph(agents: Agent[], viewMode: ViewMode = "escalation") {
 	return useMemo(() => {
 		const filtered = agents.filter((a) => a.name !== "OpenClaw");
 
-		// Build name → agent lookup
+		// Build name → agent and id → agent lookups
 		const byName = new Map<string, Agent>();
+		const byId = new Map<string, Agent>();
 		for (const a of filtered) {
 			byName.set(a.name, a);
+			byId.set(a._id, a);
+		}
+
+		// Count direct reports per agent (for manager badge)
+		const directReports = new Map<string, number>();
+		for (const a of filtered) {
+			if (a.reportsTo) {
+				directReports.set(a.reportsTo, (directReports.get(a.reportsTo) || 0) + 1);
+			}
 		}
 
 		// Group by category for X positioning
@@ -61,7 +75,7 @@ export default function useEscalationGraph(agents: Agent[]) {
 		const edges: Edge[] = [];
 
 		// Position nodes
-		const tierOrder = ["T1", "T2", "T3", "none"];
+		const tierOrder = ["T1", "T2", "T2-Free", "T3", "none"];
 		for (const tier of tierOrder) {
 			const group = tierGroups[tier];
 			if (!group) continue;
@@ -84,23 +98,48 @@ export default function useEscalationGraph(agents: Agent[]) {
 						category: a.category,
 						isEnabled: a.isEnabled,
 						agentId: a._id,
+						agentRole: a.agentRole,
+						directReports: directReports.get(a._id) || 0,
 					} satisfies AgentNodeData,
 				});
 			}
 		}
 
-		// Create edges from escalationPath
-		for (const a of filtered) {
-			if (!a.escalationPath) continue;
-			for (const targetName of a.escalationPath) {
-				const target = byName.get(targetName);
-				if (!target) continue;
+		// Create edges based on view mode
+		if (viewMode === "escalation" || viewMode === "combined") {
+			// Escalation path edges (animated dashed indigo lines)
+			for (const a of filtered) {
+				if (!a.escalationPath) continue;
+				for (const targetName of a.escalationPath) {
+					const target = byName.get(targetName);
+					if (!target) continue;
+					edges.push({
+						id: `esc-${a._id}->${target._id}`,
+						source: a._id,
+						target: target._id,
+						animated: true,
+						style: { stroke: "#6366f1", strokeWidth: 2, strokeDasharray: "5,5" },
+						label: viewMode === "combined" ? "escalation" : undefined,
+						labelStyle: viewMode === "combined" ? { fontSize: 9, fill: "#6366f1" } : undefined,
+					});
+				}
+			}
+		}
+
+		if (viewMode === "org" || viewMode === "combined") {
+			// Reporting hierarchy edges (solid gray lines)
+			for (const a of filtered) {
+				if (!a.reportsTo) continue;
+				const parent = byId.get(a.reportsTo);
+				if (!parent) continue;
 				edges.push({
-					id: `${a._id}->${target._id}`,
-					source: a._id,
-					target: target._id,
-					animated: true,
-					style: { stroke: "#6366f1", strokeWidth: 2 },
+					id: `org-${a._id}->${parent._id}`,
+					source: parent._id,
+					target: a._id,
+					animated: false,
+					style: { stroke: "#6b7280", strokeWidth: 1.5 },
+					label: viewMode === "combined" ? "reports to" : undefined,
+					labelStyle: viewMode === "combined" ? { fontSize: 9, fill: "#6b7280" } : undefined,
 				});
 			}
 		}
@@ -114,5 +153,5 @@ export default function useEscalationGraph(agents: Agent[]) {
 		const isolatedCount = nodes.length - connectedIds.size;
 
 		return { nodes, edges, agentCount: nodes.length, pathCount: edges.length, isolatedCount };
-	}, [agents]);
+	}, [agents, viewMode]);
 }

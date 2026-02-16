@@ -19,7 +19,7 @@ const NAV_ITEMS = [
 	{ path: "/projects", label: "Projects", Icon: IconColumns3 },
 	{ path: "/tasks", label: "Tasks", Icon: IconChecklist },
 	{ path: "/agents", label: "Agents", Icon: IconUsers },
-	{ path: "/agents/escalation", label: "Escalation Map", Icon: IconShare2 },
+	{ path: "/agents/escalation", label: "Agent Network", Icon: IconShare2 },
 	{ path: "/opus", label: "Opus Budget", Icon: IconCoin },
 	{ path: "/phase", label: "Phase", Icon: IconToggleRight },
 	{ path: "/logs", label: "Activity Log", Icon: IconTerminal2 },

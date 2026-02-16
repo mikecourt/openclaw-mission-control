@@ -15,18 +15,21 @@ export type AgentNodeData = {
 	category?: string;
 	isEnabled?: boolean;
 	agentId: string;
+	agentRole?: string;   // "manager" | "ic"
+	directReports?: number;
 };
 
 function AgentNodeComponent({ data }: NodeProps) {
 	const d = data as unknown as AgentNodeData;
 	const borderColor = d.category ? CATEGORY_COLORS[d.category] || "#6b7280" : "#6b7280";
 	const disabled = d.isEnabled === false || d.status === "off";
+	const isManager = d.agentRole === "manager";
 
 	return (
 		<div
 			style={{
 				background: "var(--mc-bg-card)",
-				border: `2px solid ${borderColor}`,
+				border: `${isManager ? 3 : 2}px solid ${borderColor}`,
 				borderRadius: 10,
 				padding: "10px 14px",
 				minWidth: 160,
@@ -75,11 +78,36 @@ function AgentNodeComponent({ data }: NodeProps) {
 					</div>
 				</div>
 			</div>
-			{d.tier && (
-				<div style={{ marginTop: 6 }}>
-					<TierBadge tier={d.tier} />
-				</div>
-			)}
+			<div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+				{d.tier && <TierBadge tier={d.tier} />}
+				{d.agentRole && (
+					<span
+						style={{
+							fontSize: 10,
+							padding: "1px 6px",
+							borderRadius: 4,
+							background: isManager ? "rgba(245, 158, 11, 0.15)" : "rgba(107, 114, 128, 0.15)",
+							color: isManager ? "#f59e0b" : "var(--mc-text-muted)",
+							fontWeight: 500,
+						}}
+					>
+						{isManager ? "MGR" : "IC"}
+					</span>
+				)}
+				{isManager && d.directReports !== undefined && d.directReports > 0 && (
+					<span
+						style={{
+							fontSize: 10,
+							padding: "1px 6px",
+							borderRadius: 4,
+							background: "rgba(99, 102, 241, 0.15)",
+							color: "#6366f1",
+						}}
+					>
+						{d.directReports} report{d.directReports !== 1 ? "s" : ""}
+					</span>
+				)}
+			</div>
 			<Handle
 				type="source"
 				position={Position.Bottom}

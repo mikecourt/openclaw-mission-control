@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { DEFAULT_TENANT_ID } from "../lib/tenant";
 import MetricCard from "../components/shared/MetricCard";
@@ -17,9 +17,23 @@ export default function SettingsPage() {
 	const [purging, setPurging] = useState(false);
 	const [purgeResult, setPurgeResult] = useState<string | null>(null);
 
+	// Webhooks
+	const webhooks = useQuery(api.webhooks.listWebhooks, { tenantId: DEFAULT_TENANT_ID });
+	const createWebhook = useMutation(api.webhooks.createWebhook);
+	const deleteWebhookMut = useMutation(api.webhooks.deleteWebhook);
+	const testWebhookAction = useAction(api.webhooks.testWebhook);
+
+	const [newWebhookUrl, setNewWebhookUrl] = useState("");
+	const [newWebhookSecret, setNewWebhookSecret] = useState(() => crypto.randomUUID());
+	const [newWebhookName, setNewWebhookName] = useState("");
+	const [newWebhookEvents, setNewWebhookEvents] = useState<string[]>(["task_failed", "risk_signal"]);
+	const [testingWebhook, setTestingWebhook] = useState<string | null>(null);
+	const [testResult, setTestResult] = useState<string | null>(null);
+
+	const WEBHOOK_EVENTS = ["task_completed", "task_failed", "risk_signal", "budget_threshold", "agent_blocked"];
+
 	// Initialize from settings
 	const opusBudgetSetting = allSettings?.find((s) => s.key === "opusBudget");
-	const retentionSetting = allSettings?.find((s) => s.key === "retentionDays");
 
 	const handleSaveSettings = async () => {
 		setSaving(true);
@@ -51,6 +65,45 @@ export default function SettingsPage() {
 		a.download = `control-tower-export-${new Date().toISOString().split("T")[0]}.json`;
 		a.click();
 		URL.revokeObjectURL(url);
+	};
+
+	const handleCreateWebhook = async () => {
+		if (!newWebhookUrl) return;
+		await createWebhook({
+			url: newWebhookUrl,
+			secret: newWebhookSecret,
+			events: newWebhookEvents,
+			enabled: true,
+			name: newWebhookName || undefined,
+			tenantId: DEFAULT_TENANT_ID,
+		});
+		setNewWebhookUrl("");
+		setNewWebhookSecret(crypto.randomUUID());
+		setNewWebhookName("");
+		setNewWebhookEvents(["task_failed", "risk_signal"]);
+	};
+
+	const handleTestWebhook = async (webhookId: string) => {
+		setTestingWebhook(webhookId);
+		setTestResult(null);
+		try {
+			const result = await testWebhookAction({ webhookId: webhookId as any, tenantId: DEFAULT_TENANT_ID });
+			setTestResult(result.success ? "Success!" : `Failed: ${result.error}`);
+		} catch (e: any) {
+			setTestResult(`Error: ${e.message}`);
+		} finally {
+			setTestingWebhook(null);
+		}
+	};
+
+	const handleDeleteWebhook = async (webhookId: string) => {
+		await deleteWebhookMut({ webhookId: webhookId as any, tenantId: DEFAULT_TENANT_ID });
+	};
+
+	const toggleEvent = (evt: string) => {
+		setNewWebhookEvents((prev) =>
+			prev.includes(evt) ? prev.filter((e) => e !== evt) : [...prev, evt]
+		);
 	};
 
 	return (
@@ -196,6 +249,159 @@ export default function SettingsPage() {
 					</table>
 				</div>
 			)}
+
+			{/* Webhooks */}
+			<div className="metric-card" style={{ marginBottom: 16 }}>
+				<div className="metric-label" style={{ marginBottom: 12 }}>Webhooks</div>
+
+				{/* Existing webhooks table */}
+				{webhooks && webhooks.length > 0 && (
+					<table className="data-table" style={{ marginBottom: 16 }}>
+						<thead>
+							<tr>
+								<th>Name</th>
+								<th>URL</th>
+								<th>Events</th>
+								<th>Status</th>
+								<th>Last Delivered</th>
+								<th>Actions</th>
+							</tr>
+						</thead>
+						<tbody>
+							{webhooks.map((w) => (
+								<tr key={w._id}>
+									<td style={{ fontSize: 12 }}>{w.name || "—"}</td>
+									<td style={{ fontSize: 12, fontFamily: "var(--font-mono)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+										{w.url}
+									</td>
+									<td style={{ fontSize: 11 }}>{w.events.join(", ")}</td>
+									<td>
+										<span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+											<span className="status-dot" style={{ backgroundColor: w.enabled ? "var(--mc-status-ok)" : "var(--mc-status-error)" }} />
+											{w.enabled ? "Active" : "Disabled"}
+											{(w.failCount ?? 0) > 0 && (
+												<span style={{ fontSize: 10, color: "var(--mc-status-warn)" }}>({w.failCount} fails)</span>
+											)}
+										</span>
+									</td>
+									<td style={{ fontSize: 12, color: "var(--mc-text-muted)" }}>
+										{w.lastDeliveredAt ? new Date(w.lastDeliveredAt).toLocaleString() : "Never"}
+									</td>
+									<td>
+										<div style={{ display: "flex", gap: 4 }}>
+											<button
+												className="btn-secondary"
+												style={{ fontSize: 11, padding: "2px 8px" }}
+												onClick={() => handleTestWebhook(w._id)}
+												disabled={testingWebhook === w._id}
+											>
+												{testingWebhook === w._id ? "..." : "Test"}
+											</button>
+											<button
+												className="btn-secondary"
+												style={{ fontSize: 11, padding: "2px 8px", color: "var(--mc-status-error)" }}
+												onClick={() => handleDeleteWebhook(w._id)}
+											>
+												Delete
+											</button>
+										</div>
+									</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				)}
+
+				{testResult && (
+					<div style={{ fontSize: 12, marginBottom: 12, color: testResult.startsWith("Success") ? "var(--mc-status-ok)" : "var(--mc-status-error)" }}>
+						{testResult}
+					</div>
+				)}
+
+				{/* Add webhook form */}
+				<div style={{ borderTop: "1px solid var(--mc-border)", paddingTop: 12 }}>
+					<div style={{ fontSize: 12, color: "var(--mc-text-muted)", marginBottom: 8 }}>Add Webhook</div>
+					<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+						<div>
+							<label style={{ fontSize: 11, color: "var(--mc-text-muted)", display: "block", marginBottom: 4 }}>URL</label>
+							<input
+								type="url"
+								value={newWebhookUrl}
+								onChange={(e) => setNewWebhookUrl(e.target.value)}
+								placeholder="https://example.com/webhook"
+								style={{
+									width: "100%",
+									padding: "6px 10px",
+									background: "var(--mc-bg-primary)",
+									border: "1px solid var(--mc-border)",
+									borderRadius: 6,
+									color: "var(--mc-text-primary)",
+									fontSize: 12,
+								}}
+							/>
+						</div>
+						<div>
+							<label style={{ fontSize: 11, color: "var(--mc-text-muted)", display: "block", marginBottom: 4 }}>Name</label>
+							<input
+								type="text"
+								value={newWebhookName}
+								onChange={(e) => setNewWebhookName(e.target.value)}
+								placeholder="My Webhook"
+								style={{
+									width: "100%",
+									padding: "6px 10px",
+									background: "var(--mc-bg-primary)",
+									border: "1px solid var(--mc-border)",
+									borderRadius: 6,
+									color: "var(--mc-text-primary)",
+									fontSize: 12,
+								}}
+							/>
+						</div>
+						<div>
+							<label style={{ fontSize: 11, color: "var(--mc-text-muted)", display: "block", marginBottom: 4 }}>Secret</label>
+							<input
+								type="text"
+								value={newWebhookSecret}
+								readOnly
+								style={{
+									width: "100%",
+									padding: "6px 10px",
+									background: "var(--mc-bg-primary)",
+									border: "1px solid var(--mc-border)",
+									borderRadius: 6,
+									color: "var(--mc-text-muted)",
+									fontSize: 11,
+									fontFamily: "var(--font-mono)",
+								}}
+							/>
+						</div>
+					</div>
+					<div style={{ marginBottom: 12 }}>
+						<label style={{ fontSize: 11, color: "var(--mc-text-muted)", display: "block", marginBottom: 4 }}>Events</label>
+						<div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+							{WEBHOOK_EVENTS.map((evt) => (
+								<label key={evt} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, cursor: "pointer" }}>
+									<input
+										type="checkbox"
+										checked={newWebhookEvents.includes(evt)}
+										onChange={() => toggleEvent(evt)}
+									/>
+									{evt}
+								</label>
+							))}
+						</div>
+					</div>
+					<button
+						className="btn-primary"
+						onClick={handleCreateWebhook}
+						disabled={!newWebhookUrl}
+						style={{ fontSize: 12 }}
+					>
+						Add Webhook
+					</button>
+				</div>
+			</div>
 
 			{/* Data Management */}
 			<div className="metric-card">

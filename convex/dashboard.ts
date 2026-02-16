@@ -65,10 +65,24 @@ export const getSystemOverview = query({
 		).length;
 		const reviewTasks = tasks.filter((t) => t.status === "review").length;
 
+		// Risk signal counts
+		const allSignals = await ctx.db
+			.query("riskSignals")
+			.withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+			.collect();
+		const activeSignals = allSignals.filter((s) => s.resolvedAt === undefined);
+		const riskSignals = { total: 0, critical: 0, high: 0, medium: 0, low: 0 };
+		for (const signal of activeSignals) {
+			riskSignals.total++;
+			const sev = signal.severity as keyof typeof riskSignals;
+			if (sev in riskSignals) riskSignals[sev]++;
+		}
+
 		return {
 			agents: { active: activeAgents, idle: idleAgents, off: offAgents, total: agents.length },
 			tasks: { active: activeTasks, queued: queuedTasks, completedToday, failedToday, review: reviewTasks },
 			alertCount: reviewTasks,
+			riskSignals,
 		};
 	},
 });

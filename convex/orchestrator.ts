@@ -572,6 +572,26 @@ export const submitTask = mutation({
 			)
 			.first();
 
+		// 5b. Use agent's configured escalation path if available, fall back to hardcoded
+		let effectiveEscalationPath = routing.escalationPath;
+		if (agentDoc?.escalationPath && agentDoc.escalationPath.length > 0) {
+			// DB stores agent names; resolve to routing IDs for internal use
+			const allAgents = await ctx.db
+				.query("agents")
+				.withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+				.collect();
+			const nameToRoutingId = new Map<string, string>();
+			for (const a of allAgents) {
+				if (a.routingId) nameToRoutingId.set(a.name, a.routingId);
+			}
+			const resolved = agentDoc.escalationPath
+				.map((name) => nameToRoutingId.get(name))
+				.filter((rid): rid is string => !!rid) as AgentId[];
+			if (resolved.length > 0) {
+				effectiveEscalationPath = resolved;
+			}
+		}
+
 		// Map orchestrator status to existing schema
 		const status = phaseDecision.action === "queue" ? "inbox" : "assigned";
 
@@ -617,7 +637,7 @@ export const submitTask = mutation({
 			phase: routing.phase,
 			phaseAction: phaseDecision.action,
 			phaseReason: phaseDecision.reason,
-			escalationPath: routing.escalationPath,
+			escalationPath: effectiveEscalationPath,
 			rationale: routing.rationale,
 			mappedPriority: PRIORITY_MAP[priority],
 			mappedStatus: status,
@@ -673,6 +693,26 @@ export const reportTaskResult = mutation({
 
 			const routing = routeTask(taskType, businessUnit, instruction, taskPriority as Priority);
 
+			// Check if the assigned agent has a configured escalation path in DB
+			let effectiveEscalationPath = routing.escalationPath;
+			if (task.assigneeIds && task.assigneeIds.length > 0) {
+				const assignedAgentDoc = await ctx.db.get(task.assigneeIds[0]);
+				if (assignedAgentDoc?.escalationPath && assignedAgentDoc.escalationPath.length > 0) {
+					const allAgentsForResolve = await ctx.db
+						.query("agents")
+						.withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+						.collect();
+					const nameToRid = new Map<string, string>();
+					for (const a of allAgentsForResolve) {
+						if (a.routingId) nameToRid.set(a.name, a.routingId);
+					}
+					const resolved = assignedAgentDoc.escalationPath
+						.map((name: string) => nameToRid.get(name))
+						.filter((rid: string | undefined): rid is string => !!rid) as AgentId[];
+					if (resolved.length > 0) effectiveEscalationPath = resolved;
+				}
+			}
+
 			// Determine the failed agent's routingId
 			let failedAgentRoutingId: AgentId = "orchestrator";
 			if (task.assigneeIds && task.assigneeIds.length > 0) {
@@ -684,7 +724,7 @@ export const reportTaskResult = mutation({
 
 			const escalation = handleEscalation(
 				failedAgentRoutingId,
-				routing.escalationPath,
+				effectiveEscalationPath,
 				task.escalationAttempts || 0,
 				(task.maxTierAttempted || "T3") as Tier,
 				args.failureReason || "Unknown failure",

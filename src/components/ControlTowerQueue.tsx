@@ -110,10 +110,6 @@ const ControlTowerQueue: React.FC<ControlTowerQueueProps> = ({
 
 	const currentUserAgent = agents?.find(a => a.name === "Mike");
 
-	// Count backlog tasks (no project) for the card on the project board
-	const backlogTasks = useQuery(api.queries.listTasks, { tenantId: DEFAULT_TENANT_ID, unassigned: true });
-	const backlogCount = backlogTasks?.filter((t) => t.status !== "archived").length ?? 0;
-
 	const sensors = useSensors(
 		useSensor(PointerSensor, {
 			activationConstraint: { distance: 8 },
